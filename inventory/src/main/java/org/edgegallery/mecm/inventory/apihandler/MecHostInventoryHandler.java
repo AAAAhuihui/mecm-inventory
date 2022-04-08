@@ -199,67 +199,13 @@ public class MecHostInventoryHandler {
     @ApiOperation(value = "Retrieves all MEC host records", response = List.class)
     @GetMapping(path = "/tenants/{tenant_id}/mechosts", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<List<MecHostDto>> getAllMecHostRecords(
-            @ApiParam(value = "tenant identifier") @PathVariable(TENANT_ID)
-            @Pattern(regexp = Constants.TENANT_ID_REGEX) @Size(max = 64) String tenantId) {
+        @ApiParam(value = "tenant identifier") @PathVariable(TENANT_ID)
+        @Pattern(regexp = Constants.TENANT_ID_REGEX) @Size(max = 64) String tenantId) {
 
         List<MecHost> mecHostsAdmin = new LinkedList<>();
         List<MecHostDto> mecHostDtos = new LinkedList<>();
-
-        try {
-            List<MecHost> mecHosts  = service.getTenantRecords(null, repository);
-            for (MecHost mecHost: mecHosts) {
-                if (mecHost.getRole().equals(ROLE_ADMIN)) {
-                    mecHostsAdmin.add(mecHost);
-                }
-            }
-
-            // if role is admin, just return all records belongs to admin role users.
-            if (InventoryUtilities.hasRole(ROLE_ADMIN)) {
-                for (MecHost host : mecHostsAdmin) {
-                    MecHostDto mecHostDto = InventoryUtilities.getModelMapper().map(host, MecHostDto.class);
-                    mecHostDtos.add(mecHostDto);
-                }
-                return new ResponseEntity<>(mecHostDtos, HttpStatus.OK);
-            }
-        } catch (NoSuchElementException ex) {
-            LOGGER.debug("No MEC host records exist created by Admin");
-        }
-
-        List<MecHost> mecHosts;
-        try {
-            mecHosts = service.getTenantRecords(tenantId, repository);
-            for (MecHost host : mecHosts) {
-                MecHostDto mecHostDto = InventoryUtilities.getModelMapper().map(host, MecHostDto.class);
-                mecHostDtos.add(mecHostDto);
-            }
-        } catch (NoSuchElementException ex) {
-            if (mecHostsAdmin.isEmpty()) {
-                throw ex;
-            }
-        }
-
-        if (mecHostDtos.isEmpty()) {
-            for (MecHost host : mecHostsAdmin) {
-                MecHostDto mecHostDto = InventoryUtilities.getModelMapper().map(host, MecHostDto.class);
-                mecHostDtos.add(mecHostDto);
-            }
-            return new ResponseEntity<>(mecHostDtos, HttpStatus.OK);
-        }
-
-        List<MecHostDto> retHostDtos = new LinkedList<>();
-        for (MecHostDto hostDto : mecHostDtos) {
-            retHostDtos.add(hostDto);
-        }
-
-        for (MecHost mecHostAdmin : mecHostsAdmin) {
-            for (MecHostDto tenantMecHost : mecHostDtos) {
-                if (!mecHostAdmin.getMechostIp().equals(tenantMecHost.getMechostIp())) {
-                    MecHostDto mecHostDto = InventoryUtilities.getModelMapper().map(mecHostAdmin, MecHostDto.class);
-                    retHostDtos.add(mecHostDto);
-                }
-            }
-        }
-        return new ResponseEntity<>(retHostDtos, HttpStatus.OK);
+        List<MecHostDto> resHostDtos = service.getAllMecHostRecords(tenantId, mecHostsAdmin, mecHostDtos);
+        return new ResponseEntity<>(resHostDtos, HttpStatus.OK);
     }
 
     /**

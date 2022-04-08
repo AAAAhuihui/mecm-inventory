@@ -17,7 +17,9 @@
 package org.edgegallery.mecm.inventory.service;
 
 import java.util.List;
+import org.edgegallery.mecm.inventory.apihandler.dto.MecHostDto;
 import org.edgegallery.mecm.inventory.model.BaseModel;
+import org.edgegallery.mecm.inventory.model.MecHost;
 import org.edgegallery.mecm.inventory.utils.Status;
 import org.springframework.data.repository.CrudRepository;
 
@@ -95,4 +97,14 @@ public interface InventoryService {
      * @return list of records
      */
     <T extends BaseModel> List<T> getRecordsByRole(String role, CrudRepository<T, String> repository);
+
+    /**
+     * Returns all mechost records.
+     *
+     * @param tenantId tenantId
+     * @param mecHostsAdmin mecHostsAdmin
+     * @param mecHostDtos mecHostDtos
+     * @return list of records
+     */
+    List<MecHostDto> getAllMecHostRecords(String tenantId, List<MecHost> mecHostsAdmin, List<MecHostDto> mecHostDtos);
 }
