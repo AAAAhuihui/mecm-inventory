@@ -37,8 +37,8 @@ class TenantServiceImpl implements TenantService {
 
     @Override
     public void addTenant(String id, ModelType type) {
-        Optional<Tenant> record = repository.findById(id);
-        if (!record.isPresent()) {
+        Optional<Tenant> recordOption = repository.findById(id);
+        if (!recordOption.isPresent()) {
             Tenant nt = new Tenant();
             nt.setTenantId(id);
             addCount(nt, type);
@@ -46,7 +46,7 @@ class TenantServiceImpl implements TenantService {
             LOGGER.info("Tenant record with identifier {} added", id);
             return;
         }
-        Tenant ot = record.get();
+        Tenant ot = recordOption.get();
         addCount(ot, type);
         repository.save(ot);
         LOGGER.info("Tenant record with identifier {} updated with new count for type {}", id, type);
@@ -54,12 +54,12 @@ class TenantServiceImpl implements TenantService {
 
     @Override
     public void reduceCount(String id, ModelType type) {
-        Optional<Tenant> record = repository.findById(id);
-        if (!record.isPresent()) {
+        Optional<Tenant> recordOption = repository.findById(id);
+        if (!recordOption.isPresent()) {
             LOGGER.error("Tenant record for tenant identifier {} not found", id);
             throw new NoSuchElementException(Constants.RECORD_NOT_FOUND_ERROR);
         }
-        Tenant ot = record.get();
+        Tenant ot = recordOption.get();
         subtractCount(ot, type);
         if (ot.getMepms() == 0 && ot.getAppStores() == 0 && ot.getMecHosts() == 0
                 && ot.getMecHwCapabilities() == 0 && ot.getMecApplications() == 0
@@ -85,12 +85,12 @@ class TenantServiceImpl implements TenantService {
 
     @Override
     public void clearCount(String id, ModelType type) {
-        Optional<Tenant> record = repository.findById(id);
-        if (!record.isPresent()) {
+        Optional<Tenant> recordOption = repository.findById(id);
+        if (!recordOption.isPresent()) {
             LOGGER.error("Tenant record for tenant identifier {} not found", id);
             throw new NoSuchElementException(Constants.RECORD_NOT_FOUND_ERROR);
         }
-        Tenant ot = record.get();
+        Tenant ot = recordOption.get();
         clearCountNumber(ot, type);
         if (ot.getMepms() == 0 && ot.getAppStores() == 0 && ot.getMecHosts() == 0
                 && ot.getMecHwCapabilities() == 0 && ot.getMecApplications() == 0
