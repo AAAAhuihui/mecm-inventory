@@ -17,13 +17,18 @@
 package org.edgegallery.mecm.inventory.service;
 
 import com.google.common.collect.Lists;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import org.edgegallery.mecm.inventory.apihandler.dto.MecHostDto;
 import org.edgegallery.mecm.inventory.exception.InventoryException;
 import org.edgegallery.mecm.inventory.model.BaseModel;
+import org.edgegallery.mecm.inventory.model.MecHost;
 import org.edgegallery.mecm.inventory.service.repository.BaseRepository;
+import org.edgegallery.mecm.inventory.service.repository.MecHostRepository;
 import org.edgegallery.mecm.inventory.utils.Constants;
+import org.edgegallery.mecm.inventory.utils.InventoryUtilities;
 import org.edgegallery.mecm.inventory.utils.Status;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,8 +45,12 @@ public final class InventoryServiceImpl implements InventoryService {
     private static final Logger LOGGER = LoggerFactory.getLogger(InventoryServiceImpl.class);
     private static final String TENANT_NOT_FOUND_MESSAGE = "Record corresponding to tenant identifier {} not exists";
     private static final String ID_NOT_FOUND_MESSAGE = "Record corresponding to identifier {} not exists";
+    private static final String ROLE_ADMIN = "ROLE_MECM_ADMIN";
+
     @Autowired
     private TenantServiceImpl tenantService;
+    @Autowired
+    private MecHostRepository repository;
 
     @Override
     public <T extends BaseModel> Status addRecord(T model, CrudRepository<T, String> repository) {
@@ -51,16 +60,16 @@ public final class InventoryServiceImpl implements InventoryService {
             throw new IllegalArgumentException("Record already exist");
         }
         long size;
-        List<T> record = null;
+        List<T> recordList = null;
         String tenantId = model.getTenantId();
         if (tenantId != null) {
-            record = ((BaseRepository) repository).findByTenantId(tenantId);
+            recordList = ((BaseRepository) repository).findByTenantId(tenantId);
 
             if (tenantService.isMaxTenantCountReached() && !tenantService.isTenantExist(tenantId)) {
                 LOGGER.error("Max tenant count {} reached", Constants.MAX_TENANTS);
                 throw new InventoryException(Constants.MAX_LIMIT_REACHED_ERROR);
             }
-            size = record.size();
+            size = recordList.size();
         } else {
             size = repository.count();
         }
@@ -92,65 +101,65 @@ public final class InventoryServiceImpl implements InventoryService {
 
     @Override
     public <T extends BaseModel> List<T> getTenantRecords(String tenantId, CrudRepository<T, String> repository) {
-        List<T> record;
+        List<T> recordList;
         if (tenantId != null) {
-            record = ((BaseRepository) repository).findByTenantId(tenantId);
-            if (record == null || record.isEmpty()) {
+            recordList = ((BaseRepository) repository).findByTenantId(tenantId);
+            if (recordList == null || recordList.isEmpty()) {
                 LOGGER.error(TENANT_NOT_FOUND_MESSAGE, tenantId);
                 throw new NoSuchElementException(Constants.RECORD_NOT_FOUND_ERROR);
             }
-            LOGGER.info("Records returned for tenant identifier {} & type {}", record.get(0).getTenantId(),
-                    record.get(0).getType());
+            LOGGER.info("Records returned for tenant identifier {} & type {}", recordList.get(0).getTenantId(),
+                recordList.get(0).getType());
         } else {
             Iterable<T> records = repository.findAll();
             if (!records.iterator().hasNext()) {
                 LOGGER.error(Constants.RECORD_NOT_FOUND_ERROR);
                 throw new NoSuchElementException(Constants.RECORD_NOT_FOUND_ERROR);
             }
-            record = Lists.newArrayList(repository.findAll());
-            LOGGER.info("Records returned for the type {}", record.get(0).getType());
+            recordList = Lists.newArrayList(repository.findAll());
+            LOGGER.info("Records returned for the type {}", recordList.get(0).getType());
         }
-        return record;
+        return recordList;
     }
 
     @Override
     public <T extends BaseModel> List<T> getRecordsByRole(String role, CrudRepository<T, String> repository) {
-        List<T> record;
+        List<T> recordList;
         Iterable<T> records = ((BaseRepository) repository).findByUserRole(role);
         if (!records.iterator().hasNext()) {
             LOGGER.error(Constants.RECORD_NOT_FOUND_ERROR);
             throw new NoSuchElementException(Constants.RECORD_NOT_FOUND_ERROR);
         }
-        record = Lists.newArrayList(repository.findAll());
-        LOGGER.info("Records returned for the type {}", record.get(0).getType());
-        return record;
+        recordList = Lists.newArrayList(repository.findAll());
+        LOGGER.info("Records returned for the type {}", recordList.get(0).getType());
+        return recordList;
     }
 
     @Override
     public <T extends BaseModel> T getRecord(String id, CrudRepository<T, String> repository) {
-        Optional<T> record = repository.findById(id);
-        if (!record.isPresent()) {
+        Optional<T> recordOption = repository.findById(id);
+        if (!recordOption.isPresent()) {
             LOGGER.error(ID_NOT_FOUND_MESSAGE, id);
             throw new NoSuchElementException(Constants.RECORD_NOT_FOUND_ERROR);
         }
-        LOGGER.info("Record returned for identifier {} & type {}", record.get().getIdentifier(),
-                record.get().getType());
-        return record.get();
+        LOGGER.info("Record returned for identifier {} & type {}", recordOption.get().getIdentifier(),
+            recordOption.get().getType());
+        return recordOption.get();
     }
 
     @Override
     public <T extends BaseModel> Status deleteTenantRecords(String tenantId, CrudRepository<T, String> repository) {
-        List<T> record;
+        List<T> recordList;
         if (tenantId != null) {
-            record = ((BaseRepository) repository).findByTenantId(tenantId);
-            if (record == null || record.isEmpty()) {
+            recordList = ((BaseRepository) repository).findByTenantId(tenantId);
+            if (recordList == null || recordList.isEmpty()) {
                 LOGGER.error(TENANT_NOT_FOUND_MESSAGE, tenantId);
                 throw new NoSuchElementException(Constants.RECORD_NOT_FOUND_ERROR);
             }
             ((BaseRepository) repository).deleteByTenantId(tenantId);
-            LOGGER.info("Record deleted for tenant identifier {} & type {}", record.get(0).getTenantId(),
-                    record.get(0).getType());
-            tenantService.clearCount(tenantId, record.get(0).getType());
+            LOGGER.info("Record deleted for tenant identifier {} & type {}", recordList.get(0).getTenantId(),
+                recordList.get(0).getType());
+            tenantService.clearCount(tenantId, recordList.get(0).getType());
         } else {
             repository.deleteAll();
         }
@@ -159,12 +168,12 @@ public final class InventoryServiceImpl implements InventoryService {
 
     @Override
     public <T extends BaseModel> Status deleteRecord(String id, CrudRepository<T, String> repository) {
-        Optional<T> record = repository.findById(id);
-        if (!record.isPresent()) {
+        Optional<T> recordOption = repository.findById(id);
+        if (!recordOption.isPresent()) {
             LOGGER.error(ID_NOT_FOUND_MESSAGE, id);
             throw new NoSuchElementException(Constants.RECORD_NOT_FOUND_ERROR);
         }
-        BaseModel model = record.get();
+        BaseModel model = recordOption.get();
         String tenantId = model.getTenantId();
         repository.deleteById(id);
         if (tenantId != null) {
@@ -175,5 +184,79 @@ public final class InventoryServiceImpl implements InventoryService {
         }
 
         return new Status("Deleted");
+    }
+
+    private boolean addAdminRoleRecord(List<MecHost> mecHostsAdmin, List<MecHostDto> mecHostDtos) {
+        List<MecHost> mecHosts = getTenantRecords(null, repository);
+        for (MecHost mecHost : mecHosts) {
+            if (mecHost.getRole().equals(ROLE_ADMIN)) {
+                mecHostsAdmin.add(mecHost);
+            }
+        }
+        if (InventoryUtilities.hasRole(ROLE_ADMIN)) {
+            for (MecHost host : mecHostsAdmin) {
+                MecHostDto mecHostDto = InventoryUtilities.getModelMapper().map(host, MecHostDto.class);
+                mecHostDtos.add(mecHostDto);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private boolean checkEmpty(List<MecHost> mecHostsAdmin, List<MecHostDto> mecHostDtos) {
+        if (mecHostDtos.isEmpty()) {
+            for (MecHost host : mecHostsAdmin) {
+                MecHostDto mecHostDto = InventoryUtilities.getModelMapper().map(host, MecHostDto.class);
+                mecHostDtos.add(mecHostDto);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private List<MecHostDto> addHostDtos(List<MecHost> mecHostsAdmin, List<MecHostDto> mecHostDtos) {
+        List<MecHostDto> retHostDtos = new LinkedList<>();
+        for (MecHostDto hostDto : mecHostDtos) {
+            retHostDtos.add(hostDto);
+        }
+
+        for (MecHost mecHostAdmin : mecHostsAdmin) {
+            for (MecHostDto tenantMecHost : mecHostDtos) {
+                if (!mecHostAdmin.getMechostIp().equals(tenantMecHost.getMechostIp())) {
+                    MecHostDto mecHostDto = InventoryUtilities.getModelMapper().map(mecHostAdmin, MecHostDto.class);
+                    retHostDtos.add(mecHostDto);
+                }
+            }
+        }
+        return retHostDtos;
+    }
+
+    @Override
+    public List<MecHostDto> getAllMecHostRecords(String tenantId, List<MecHost> mecHostsAdmin,
+        List<MecHostDto> mecHostDtos) {
+        try {
+            // if role is admin, just return all records belongs to admin role users.
+            if (addAdminRoleRecord(mecHostsAdmin, mecHostDtos)) {
+                return mecHostDtos;
+            }
+        } catch (NoSuchElementException ex) {
+            LOGGER.debug("No MEC host records exist created by Admin");
+        }
+        List<MecHost> mecHosts;
+        try {
+            mecHosts = getTenantRecords(tenantId, repository);
+            for (MecHost host : mecHosts) {
+                MecHostDto mecHostDto = InventoryUtilities.getModelMapper().map(host, MecHostDto.class);
+                mecHostDtos.add(mecHostDto);
+            }
+        } catch (NoSuchElementException ex) {
+            if (mecHostsAdmin.isEmpty()) {
+                throw ex;
+            }
+        }
+        if (checkEmpty(mecHostsAdmin, mecHostDtos)) {
+            return mecHostDtos;
+        }
+        return addHostDtos(mecHostsAdmin, mecHostDtos);
     }
 }
