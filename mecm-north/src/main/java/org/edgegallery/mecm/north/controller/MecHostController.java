@@ -23,12 +23,9 @@ import io.swagger.annotations.ApiParam;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 import javax.servlet.http.HttpServletRequest;
-import javax.validation.constraints.Pattern;
 import javax.ws.rs.core.MediaType;
 import org.apache.servicecomb.provider.rest.common.RestSchema;
-import org.edgegallery.mecm.north.controller.advice.RequestCheckBody;
 import org.edgegallery.mecm.north.controller.advice.ResponseObject;
-import org.edgegallery.mecm.north.controller.advice.ResponseOfStatus;
 import org.edgegallery.mecm.north.controller.advice.RspHealthCheck;
 import org.edgegallery.mecm.north.facade.MecmHostServiceFacade;
 import org.edgegallery.mecm.north.utils.constant.Constant;
@@ -38,13 +35,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.RequestParam;
 
 @Controller
 @RestSchema(schemaId = "mecmHost")
