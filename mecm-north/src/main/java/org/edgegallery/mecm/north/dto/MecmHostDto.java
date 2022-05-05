@@ -18,6 +18,7 @@
 package org.edgegallery.mecm.north.dto;
 
 import java.util.Map;
+
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
@@ -28,13 +29,27 @@ import lombok.Setter;
 public class MecmHostDto {
     private String mechostIp;
 
+    private String tenantId;
+
     private String mechostName;
 
-    private String mechostCity;
+    private String zipCode;
+
+    private String city;
+
+    private String address;
+
+    private String affinity;
+
+    private String userName;
+
+    private String mepmIp;
+
+    private String coordinates;
 
     private String vim;
 
-    private String affinity;
+    private String configUploadStatus;
 
     /**
      * convert from data map.
@@ -43,8 +58,11 @@ public class MecmHostDto {
      * @return dto object
      */
     public static MecmHostDto fromMap(Map<String, Object> mecHostInfoMap) {
-        return new MecmHostDto((String) mecHostInfoMap.get("mechostIp"), (String) mecHostInfoMap.get("mechostName"),
-            (String) mecHostInfoMap.get("city"), (String) mecHostInfoMap.get("vim"),
-            (String) mecHostInfoMap.get("affinity"));
+        return new MecmHostDto((String) mecHostInfoMap.get("mechostIp"), (String) mecHostInfoMap.get("tenantId"),
+                (String) mecHostInfoMap.get("mechostName"), (String) mecHostInfoMap.get("zipCode"),
+                (String) mecHostInfoMap.get("city"), (String) mecHostInfoMap.get("address"),
+                (String) mecHostInfoMap.get("affinity"), (String) mecHostInfoMap.get("userName"),
+                (String) mecHostInfoMap.get("mepmIp"), (String) mecHostInfoMap.get("coordinates"),
+                (String) mecHostInfoMap.get("vim"), (String) mecHostInfoMap.get("configUploadStatus"));
     }
 }

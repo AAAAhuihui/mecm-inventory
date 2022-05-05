@@ -35,7 +35,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -84,4 +83,22 @@ public class MecHostController {
         LOGGER.info("begin to execute mec host health check");
         return mecmHostServiceFacade.healthCheck(hostIp, httpServletRequest.getHeader(Constant.ACCESS_TOKEN));
     }
-}
+
+    /**
+     * Transfer the health check request.
+     *
+     */
+    @ApiOperation(value = "health check of all mec hosts", response = ResponseObject.class)
+    @ApiResponses(value = {
+            @ApiResponse(code = 200, message = "health check of mec host success", response = ResponseObject.class)
+    })
+    @GetMapping(value = "/mechosts/checkall", produces = MediaType.APPLICATION_JSON)
+    @PreAuthorize("hasRole('APPSTORE_TENANT') || hasRole('APPSTORE_ADMIN')")
+    public ResponseEntity<ResponseObject> allHealthCheck(
+            HttpServletRequest httpServletRequest) {
+        LOGGER.info("begin to execute all mec hosts health check");
+        return mecmHostServiceFacade.allHealthCheck(httpServletRequest.getHeader(Constant.ACCESS_TOKEN));
+    }
+
+
+ }
