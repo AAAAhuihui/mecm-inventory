@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="c6ce9070-dd69-4523-9807-c565b8de94e1" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/../inventory/configs/start.sh" beforeDir="false" afterPath="$PROJECT_DIR$/../inventory/configs/start.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../inventory/docker/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/../inventory/docker/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../inventory/src/main/java/org/edgegallery/mecm/inventory/apihandler/MecHostInventoryHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/../inventory/src/main/java/org/edgegallery/mecm/inventory/apihandler/MecHostInventoryHandler.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../inventory/src/main/java/org/edgegallery/mecm/inventory/service/InventoryServiceImpl.java" beforeDir="false" afterPath="$PROJECT_DIR$/../inventory/src/main/java/org/edgegallery/mecm/inventory/service/InventoryServiceImpl.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/docker/Dockerfile" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
+  </component>
+  <component name="GitSEFilterConfiguration">
+    <file-type-list>
+      <filtered-out-file-type name="LOCAL_BRANCH" />
+      <filtered-out-file-type name="REMOTE_BRANCH" />
+      <filtered-out-file-type name="TAG" />
+      <filtered-out-file-type name="COMMIT_BY_MESSAGE" />
+    </file-type-list>
+  </component>
+  <component name="MarkdownSettingsMigration">
+    <option name="stateVersion" value="1" />
+  </component>
+  <component name="MavenImportPreferences">
+    <option name="generalSettings">
+      <MavenGeneralSettings>
+        <option name="localRepository" value="C:\Program Files\Maven\repository" />
+        <option name="useMavenConfig" value="true" />
+        <option name="userSettingsFile" value="C:\Program Files\Maven\apache-maven-3.8.5\conf\settings.xml" />
+      </MavenGeneralSettings>
+    </option>
+  </component>
+  <component name="MavenRunner">
+    <option name="skipTests" value="true" />
+  </component>
+  <component name="ProjectId" id="28E1ujlNRBMvrJKSLfPlX7PCCy8" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">
+    <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
+    <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/pom.xml" />
+    <property name="settings.editor.selected.configurable" value="MavenSettings" />
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="c6ce9070-dd69-4523-9807-c565b8de94e1" name="Changes" comment="" />
+      <created>1650767162362</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1650767162362</updated>
+    </task>
+    <servers />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+</project>
