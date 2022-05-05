@@ -29,7 +29,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 @RequestMapping("/north/v1")
 @Controller
 public class HealthCheckController {
-
     /**
      * Queries liveness & readiness.
      *

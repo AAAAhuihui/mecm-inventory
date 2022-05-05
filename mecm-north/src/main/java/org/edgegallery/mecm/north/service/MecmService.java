@@ -22,17 +22,16 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
+
 import org.apache.http.util.EntityUtils;
 import org.edgegallery.mecm.north.domain.ResponseConst;
+import org.edgegallery.mecm.north.dto.MecmHostDto;
 import org.edgegallery.mecm.north.utils.InitConfigUtil;
 import org.edgegallery.mecm.north.utils.constant.Constant;
 import org.edgegallery.mecm.north.utils.exception.AppException;
@@ -111,7 +110,7 @@ public class MecmService {
     /**
      * save file to local file path.
      *
-     * @param uploadFile uploadFile
+     * @param uploadFile    uploadFile
      * @param mecmPackageId mecmPackageId
      * @return save File Path
      */
@@ -147,12 +146,12 @@ public class MecmService {
      * upload file to apm service.
      *
      * @param filePath file path
-     * @param context context info
-     * @param hostIp host ip
+     * @param context  context info
+     * @param hostIp   host ip
      * @return response from atp
      */
     public ResponseEntity<String> uploadFileToApm(String filePath, Map<String, String> context, String hostIp,
-        Map<String, String> packageInfo) {
+                                                  Map<String, String> packageInfo) {
         //context 需要ACCESS_TOKEN、apmServerAddress、TENANT_ID
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
         body.add("file", new FileSystemResource(filePath));
@@ -171,13 +170,38 @@ public class MecmService {
 
         // 走upload with package，body里放file
         String url = context.get(Constant.APM_SERVER_ADDRESS)
-            .concat(String.format(APM_UPLOAD_PACKAGE, context.get(TENANT_ID)));
+                .concat(String.format(APM_UPLOAD_PACKAGE, context.get(TENANT_ID)));
         try {
             return restTemplate.exchange(url, HttpMethod.POST, requestEntity, String.class);
         } catch (RestClientException e) {
             LOGGER.error("Failed to upload file to apm, exception {}", e.getMessage());
         }
         return null;
+    }
+
+    /**
+     * get all mecm hosts.
+     *
+     * @param mecmHostList mecm host raw info from http response
+     * @return mecm host dto list
+     */
+    public List<MecmHostDto> getMecHostDto(List<Map<String, Object>> mecmHostList) {
+        List<MecmHostDto> mecmHostDtos = mecmHostList.stream().map(MecmHostDto::fromMap).collect(Collectors.toList());
+        return mecmHostDtos;
+    }
+
+    /**
+     * get all mecm hosts.
+     *
+     * @param mecmHostDtoList mecm host dto list
+     * @return mecm host ip list
+     */
+    public List<String> getMecmHostIpList(List<MecmHostDto> mecmHostDtoList) {
+        List<String> mecmHostIpList = new ArrayList<>();
+        for(MecmHostDto mecmHostDto : mecmHostDtoList) {
+            mecmHostIpList.add(mecmHostDto.getMechostIp());
+        }
+        return mecmHostIpList;
     }
 
     /**
@@ -193,14 +217,15 @@ public class MecmService {
         LOGGER.info("access token is: {}", token);
         HttpEntity<String> request = new HttpEntity<>(headers);
         String url = inventoryUrl.concat(String.format(MECM_URL_GET_MECHOSTS, tenantId));
-        LOGGER.info("mecm service side query token is : {}", token);
+        LOGGER.info("MECM GET MECHOSTS url:" + url);
+
         try {
             ResponseEntity<String> response = REST_TEMPLATE.exchange(url, HttpMethod.GET, request, String.class);
             if (!HttpStatus.OK.equals(response.getStatusCode())) {
                 LOGGER.error("Failed to get mechosts from mecm inventory, The status code is {}",
-                    response.getStatusCode());
+                        response.getStatusCode());
                 throw new AppException("Failed to get mechosts from mecm inventory.",
-                    ResponseConst.RET_GET_MECMHOST_FAILED);
+                        ResponseConst.RET_GET_MECMHOST_FAILED);
             }
             return new Gson().fromJson(response.getBody(), List.class);
         } catch (RestClientException e) {
@@ -210,12 +235,13 @@ public class MecmService {
         return Collections.emptyList();
     }
 
+
     /**
      * get package from apm.
      *
-     * @param context context
+     * @param context   context
      * @param packageId packageId
-     * @param hostIp hostIp
+     * @param hostIp    hostIp
      * @return
      */
     public String getApmPackageOnce(Map<String, String> context, String packageId, String hostIp) {
@@ -223,7 +249,7 @@ public class MecmService {
         headers.set(ACCESS_TOKEN, context.get(ACCESS_TOKEN));
         HttpEntity<String> request = new HttpEntity<>(headers);
         String url = context.get(Constant.APM_SERVER_ADDRESS)
-            .concat(String.format(APM_GET_PACKAGE, context.get(TENANT_ID), packageId));
+                .concat(String.format(APM_GET_PACKAGE, context.get(TENANT_ID), packageId));
         LOGGER.warn("getApmPackage URL: " + url);
 
         try {
@@ -250,7 +276,7 @@ public class MecmService {
             }
         } catch (RestClientException e) {
             LOGGER.error("Failed to get package from apm which packageId is {} exception {}", packageId,
-                e.getMessage());
+                    e.getMessage());
             return "Error";
         }
         return "";
@@ -261,7 +287,7 @@ public class MecmService {
      *
      * @param context context info
      * @param appName appName
-     * @param hostIp mec host ip
+     * @param hostIp  mec host ip
      * @return create app instance sucess or not.s
      */
     public String createInstanceFromAppoOnce(Map<String, String> context, String appName, String hostIp) {
@@ -278,13 +304,13 @@ public class MecmService {
 
         HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(body, headers);
         String url = context.get(Constant.APPO_SERVER_ADDRESS)
-            .concat(String.format(APPO_CREATE_APPINSTANCE, context.get(TENANT_ID)));
+                .concat(String.format(APPO_CREATE_APPINSTANCE, context.get(TENANT_ID)));
 
         try {
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, requestEntity, String.class);
             LOGGER.info("response is: {}", response.getStatusCode());
             if (HttpStatus.OK.equals(response.getStatusCode()) || HttpStatus.ACCEPTED.equals(
-                response.getStatusCode())) {
+                    response.getStatusCode())) {
                 JsonObject jsonObject = new JsonParser().parse(response.getBody()).getAsJsonObject();
                 JsonObject responseBody = jsonObject.get("response").getAsJsonObject();
                 if (null != responseBody) {
@@ -295,7 +321,7 @@ public class MecmService {
             }
         } catch (RestClientException e) {
             LOGGER.error("Failed to create app instance from appo which appId is {} exception {}", context.get(APP_ID),
-                e.getMessage());
+                    e.getMessage());
         }
         return null;
     }
@@ -303,7 +329,7 @@ public class MecmService {
     /**
      * get application instance from appo.
      *
-     * @param context context
+     * @param context       context
      * @param appInstanceId appInstanceId
      * @return
      */
@@ -312,14 +338,14 @@ public class MecmService {
         headers.set(ACCESS_TOKEN, context.get(ACCESS_TOKEN));
         HttpEntity<String> request = new HttpEntity<>(headers);
         String url = context.get(Constant.APPO_SERVER_ADDRESS)
-            .concat(String.format(APPO_GET_INSTANCE, context.get(TENANT_ID), appInstanceId));
+                .concat(String.format(APPO_GET_INSTANCE, context.get(TENANT_ID), appInstanceId));
         LOGGER.warn("getApplicationInstance URL: " + url);
 
         try {
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, request, String.class);
             if (!HttpStatus.OK.equals(response.getStatusCode())) {
                 LOGGER.error("get application instance from appo response failed. The status code is {}",
-                    response.getStatusCode());
+                        response.getStatusCode());
                 return "";
             }
 
@@ -329,14 +355,14 @@ public class MecmService {
 
             String responseStatus = responseBody.get("operationalStatus").getAsString();
             if ("Instantiation failed".equalsIgnoreCase(responseStatus) || "Create failed".equalsIgnoreCase(
-                responseStatus)) {
+                    responseStatus)) {
                 LOGGER.error("instantiate or create app failed. The status  is {}", responseStatus);
                 return Constant.INSTANTIATE_ERROR_STATUS;
             }
             return responseStatus;
         } catch (RestClientException e) {
             LOGGER.error("Failed to get application instance from appo which app_instance_id is {} exception {}",
-                appInstanceId, e.getMessage());
+                    appInstanceId, e.getMessage());
         }
         return "";
     }
@@ -344,12 +370,12 @@ public class MecmService {
     /**
      * instantiate application by appo.
      *
-     * @param context context info.
+     * @param context       context info.
      * @param appInstanceId appInstanceId
      * @return instantiate app successful
      */
     public String instantiateAppFromAppoOnce(Map<String, String> context, Map<String, Object> parameters,
-        String appInstanceId) {
+                                             String appInstanceId) {
         HttpHeaders headers = new HttpHeaders();
         headers.set(ACCESS_TOKEN, context.get(ACCESS_TOKEN));
         headers.set(CONTENT_TYPE, APPLICATION_JSON);
@@ -369,19 +395,19 @@ public class MecmService {
         }
 
         String url = context.get(Constant.APPO_SERVER_ADDRESS)
-            .concat(String.format(APPO_INSTANTIATE_APP, context.get(TENANT_ID), appInstanceId));
+                .concat(String.format(APPO_INSTANTIATE_APP, context.get(TENANT_ID), appInstanceId));
         LOGGER.info("instantiateAppFromAppo URL : {}", url);
         try {
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, request, String.class);
             if (!HttpStatus.ACCEPTED.equals(response.getStatusCode())) {
                 LOGGER.error("instantiate application from appo response failed. The status code is {}",
-                    response.getStatusCode());
+                        response.getStatusCode());
                 return Constant.INSTANTIATE_ERROR_STATUS;
             }
             LOGGER.info("instantiateAppFromAppo: {}", response.getStatusCode());
         } catch (RestClientException e) {
             LOGGER.error("Failed to instantiate application from appo which app_instance_id is {} exception {}",
-                appInstanceId, e.getMessage());
+                    appInstanceId, e.getMessage());
             return Constant.INSTANTIATE_ERROR_STATUS;
         }
         return Constant.INSTANTIATING_STATUS;
@@ -391,7 +417,7 @@ public class MecmService {
      * delete edge package.
      *
      * @param context context
-     * @param hostIp hostIp
+     * @param hostIp  hostIp
      * @return delete successfully
      */
     public boolean deleteEdgePackage(Map<String, String> context, String hostIp) {
@@ -400,7 +426,7 @@ public class MecmService {
         HttpEntity<String> request = new HttpEntity<>(headers);
 
         String url = context.get(Constant.APM_SERVER_ADDRESS)
-            .concat(String.format(APM_DELETE_EDGE_PACKAGE, context.get(TENANT_ID), context.get(PACKAGE_ID), hostIp));
+                .concat(String.format(APM_DELETE_EDGE_PACKAGE, context.get(TENANT_ID), context.get(PACKAGE_ID), hostIp));
         LOGGER.warn("deleteEdgePkg URL: {}", url);
         try {
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.DELETE, request, String.class);
@@ -427,7 +453,7 @@ public class MecmService {
         HttpEntity<String> request = new HttpEntity<>(headers);
 
         String url = context.get(Constant.APM_SERVER_ADDRESS)
-            .concat(String.format(APM_DELETE_APM_PACKAGE, context.get(TENANT_ID), context.get(PACKAGE_ID)));
+                .concat(String.format(APM_DELETE_APM_PACKAGE, context.get(TENANT_ID), context.get(PACKAGE_ID)));
         LOGGER.warn("deleteApmPkg URL: {}", url);
         try {
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.DELETE, request, String.class);
@@ -446,7 +472,7 @@ public class MecmService {
      * delete app instance from appo.
      *
      * @param appInstanceId appInstanceId
-     * @param context context info
+     * @param context       context info
      * @return response success or not.
      */
     public boolean deleteAppInstance(String appInstanceId, Map<String, String> context) {
@@ -455,19 +481,19 @@ public class MecmService {
         HttpEntity<String> request = new HttpEntity<>(headers);
 
         String url = context.get(Constant.APPO_SERVER_ADDRESS)
-            .concat(String.format(APPO_DELETE_APPLICATION_INSTANCE, context.get(TENANT_ID), appInstanceId));
+                .concat(String.format(APPO_DELETE_APPLICATION_INSTANCE, context.get(TENANT_ID), appInstanceId));
         LOGGER.warn("deleteAppInstance URL: {}", url);
         try {
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.DELETE, request, String.class);
             if (HttpStatus.OK.equals(response.getStatusCode()) || HttpStatus.ACCEPTED.equals(
-                response.getStatusCode())) {
+                    response.getStatusCode())) {
                 return true;
             }
             LOGGER.error("delete app instance from appo response failed. The status code is {}",
-                response.getStatusCode());
+                    response.getStatusCode());
         } catch (RestClientException e) {
             LOGGER.error("delete app instance from appo failed, appInstanceId is {} exception {}", appInstanceId,
-                e.getMessage());
+                    e.getMessage());
         }
 
         return false;
@@ -499,12 +525,12 @@ public class MecmService {
             } else {
                 // Server Error
                 LOGGER.error("Mec host health check failed. Response code not 200. The response code is {}",
-                    response.getStatusCode());
+                        response.getStatusCode());
                 return "Health Check Failed";
             }
         } catch (RestClientException e) {
             // Invalid Ip Address
-            LOGGER.error("Mec host health check http request failed. The status code is {}", e.getMessage());
+            LOGGER.error("Mec host health check http request failed. Please ensure the ip address is valid, and the health-check module is installed. The status code is {}", e.getMessage());
             return "Http Request Failed";
         }
     }
