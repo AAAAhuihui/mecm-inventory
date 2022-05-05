@@ -15,10 +15,12 @@
 
 package org.edgegallery.mecm.north.facade;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import org.edgegallery.mecm.north.controller.advice.ResponseObject;
 import org.edgegallery.mecm.north.controller.advice.RspHealthCheck;
 import org.edgegallery.mecm.north.domain.ResponseConst;
@@ -45,6 +47,16 @@ public class MecmHostServiceFacade {
     @Autowired
     TokenStore jwtTokenStore;
 
+    public String getUserIdFromToken(String token) {
+        OAuth2AccessToken accessToken = jwtTokenStore.readAccessToken(token);
+        if (accessToken == null || accessToken.isExpired()) {
+            return "invalid";
+        }
+        Map<String, Object> additionalInfoMap = accessToken.getAdditionalInformation();
+        String userIdFromToken = additionalInfoMap.get("userId").toString();
+        return userIdFromToken;
+    }
+
     /**
      * get all mecm hosts.
      *
@@ -55,20 +67,19 @@ public class MecmHostServiceFacade {
         LOGGER.info("get all mecm hosts.");
         LOGGER.info("Facade side, token is {}", token);
 
-        OAuth2AccessToken accessToken = jwtTokenStore.readAccessToken(token);
-        if (accessToken == null || accessToken.isExpired()) {
-            LOGGER.error("Access token has expired.");
+        String userIdFromToken = getUserIdFromToken(token);
+        if (userIdFromToken.equalsIgnoreCase("invalid")) {
+            LOGGER.error("Access token has expired. Unable to get the user id.");
             ResponseEntity.status(HttpStatus.UNAUTHORIZED);
             ErrorMessage resultMsg = new ErrorMessage(ResponseConst.RET_SUCCESS, new ArrayList<>());
             return ResponseEntity.ok(new ResponseObject(new ArrayList<>(), resultMsg, "token invalid."));
         }
 
-        Map<String, Object> additionalInfoMap = accessToken.getAdditionalInformation();
-        String userIdFromToken = additionalInfoMap.get("userId").toString();
         List<Map<String, Object>> mecHostList = mecmService.getAllMecmHosts(token, userIdFromToken);
-        List<MecmHostDto> respDataDto = mecHostList.stream().map(MecmHostDto::fromMap).collect(Collectors.toList());
+        List<MecmHostDto> respDataDto = mecmService.getMecHostDto(mecHostList);
         ErrorMessage resultMsg = new ErrorMessage(ResponseConst.RET_SUCCESS, null);
         return ResponseEntity.ok(new ResponseObject(respDataDto, resultMsg, "query mecm host success."));
+
     }
 
     /**
@@ -81,5 +92,29 @@ public class MecmHostServiceFacade {
         String res = mecmService.getHealthCheckResult(hostIp);
         ErrorMessage resultMsg = new ErrorMessage(ResponseConst.RET_SUCCESS, null);
         return ResponseEntity.ok(new RspHealthCheck(hostIp, res, resultMsg));
+    }
+
+    /**
+     * Get health check result.
+     *
+     * @param token access_token
+     * @return ResponseEntity
+     */
+    public ResponseEntity<ResponseObject> allHealthCheck(String token) {
+        String userIdFromToken = getUserIdFromToken(token);
+        if (userIdFromToken.equalsIgnoreCase("invalid")) {
+            ErrorMessage resultMsg = new ErrorMessage(ResponseConst.RET_SUCCESS, new ArrayList<>());
+            return ResponseEntity.ok(new ResponseObject(new ArrayList<>(), resultMsg, "token invalid"));
+        }
+        List<Map<String, Object>> mecHostList = mecmService.getAllMecmHosts(token, userIdFromToken);
+        List<MecmHostDto> respDataDto = mecmService.getMecHostDto(mecHostList);
+        List<String> allMecHostIpList = mecmService.getMecmHostIpList(respDataDto);
+        Map<String, String> healthResult = new HashMap<>();
+        for (String ip : allMecHostIpList) {
+            String eachResult = mecmService.getHealthCheckResult(ip);
+            healthResult.put(ip, eachResult);
+        }
+        ErrorMessage resultMsg = new ErrorMessage(ResponseConst.RET_SUCCESS, null);
+        return ResponseEntity.ok(new ResponseObject(healthResult,resultMsg, null));
     }
 }
