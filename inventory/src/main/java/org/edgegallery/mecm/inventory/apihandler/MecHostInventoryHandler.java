@@ -180,13 +180,15 @@ public class MecHostInventoryHandler {
         Status status = service.updateRecord(host, repository);
 
         // Send record to MEPM
-        Gson gson = new Gson();
-        String request = gson.toJson(mecHostDto);
-        ResponseEntity<String> response = restService.sendRequest(getMepmUrl(tenantId, host.getMepmIp()),
-                HttpMethod.PUT, accessToken, request);
-        LOGGER.info(STATUS_CODE, response.getStatusCodeValue(),
-                response.getBody());
-
+        try {
+            Gson gson = new Gson();
+            String request = gson.toJson(mecHostDto);
+            ResponseEntity<String> response = restService
+                .sendRequest(getMepmUrl(tenantId, host.getMepmIp()), HttpMethod.PUT, accessToken, request);
+            LOGGER.info(STATUS_CODE, response.getStatusCodeValue(), response.getBody());
+        } catch (Exception e) {
+            return new ResponseEntity<>(new Status("partial success"), HttpStatus.OK);
+        }
         return new ResponseEntity<>(status, HttpStatus.OK);
     }
 
@@ -371,8 +373,8 @@ public class MecHostInventoryHandler {
                     HttpMethod.DELETE, accessToken, "");
             LOGGER.info(STATUS_CODE, response.getStatusCodeValue(),
                     response.getBody());
-        } catch (NoSuchElementException e) {
-            LOGGER.error("mec host does not exist");
+        } catch (Exception e) {
+            LOGGER.error("delete on mepm failed");
         }
 
         return new ResponseEntity<>(status, HttpStatus.OK);
