@@ -373,8 +373,8 @@ public class MecHostInventoryHandler {
                     HttpMethod.DELETE, accessToken, "");
             LOGGER.info(STATUS_CODE, response.getStatusCodeValue(),
                     response.getBody());
-        } catch (NoSuchElementException e) {
-            LOGGER.error("mec host does not exist");
+        } catch (Exception e) {
+            LOGGER.error("delete on mepm failed");
         }
 
         return new ResponseEntity<>(status, HttpStatus.OK);
