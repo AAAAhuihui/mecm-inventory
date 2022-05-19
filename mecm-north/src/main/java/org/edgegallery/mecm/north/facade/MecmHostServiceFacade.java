@@ -15,12 +15,10 @@
 
 package org.edgegallery.mecm.north.facade;
 
-import java.util.*;
-import java.util.stream.Collectors;
-
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import org.edgegallery.mecm.north.controller.advice.ResponseObject;
 import org.edgegallery.mecm.north.controller.advice.RspHealthCheck;
 import org.edgegallery.mecm.north.domain.ResponseConst;
@@ -47,6 +45,12 @@ public class MecmHostServiceFacade {
     @Autowired
     TokenStore jwtTokenStore;
 
+    /**
+     * get userId from token.
+     *
+     * @param token Access Token
+     * @return userIdFromToken
+     */
     public String getUserIdFromToken(String token) {
         OAuth2AccessToken accessToken = jwtTokenStore.readAccessToken(token);
         if (accessToken == null || accessToken.isExpired()) {
