@@ -99,6 +99,4 @@ public class MecHostController {
         LOGGER.info("begin to execute all mec hosts health check");
         return mecmHostServiceFacade.allHealthCheck(httpServletRequest.getHeader(Constant.ACCESS_TOKEN));
     }
-
-
- }
+}

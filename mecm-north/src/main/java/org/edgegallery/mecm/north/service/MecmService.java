@@ -22,14 +22,15 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
-
-import org.apache.http.util.EntityUtils;
 import org.edgegallery.mecm.north.domain.ResponseConst;
 import org.edgegallery.mecm.north.dto.MecmHostDto;
 import org.edgegallery.mecm.north.utils.InitConfigUtil;
@@ -37,7 +38,6 @@ import org.edgegallery.mecm.north.utils.constant.Constant;
 import org.edgegallery.mecm.north.utils.exception.AppException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.HttpEntity;
@@ -50,7 +50,6 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
-import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
@@ -198,7 +197,7 @@ public class MecmService {
      */
     public List<String> getMecmHostIpList(List<MecmHostDto> mecmHostDtoList) {
         List<String> mecmHostIpList = new ArrayList<>();
-        for(MecmHostDto mecmHostDto : mecmHostDtoList) {
+        for (MecmHostDto mecmHostDto : mecmHostDtoList) {
             mecmHostIpList.add(mecmHostDto.getMechostIp());
         }
         return mecmHostIpList;
@@ -426,7 +425,7 @@ public class MecmService {
         HttpEntity<String> request = new HttpEntity<>(headers);
 
         String url = context.get(Constant.APM_SERVER_ADDRESS)
-                .concat(String.format(APM_DELETE_EDGE_PACKAGE, context.get(TENANT_ID), context.get(PACKAGE_ID), hostIp));
+            .concat(String.format(APM_DELETE_EDGE_PACKAGE, context.get(TENANT_ID), context.get(PACKAGE_ID), hostIp));
         LOGGER.warn("deleteEdgePkg URL: {}", url);
         try {
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.DELETE, request, String.class);
@@ -516,7 +515,6 @@ public class MecmService {
         restTemplate = new RestTemplate(requestFactory);
         try {
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, request, String.class);
-            // success response code 200
             if (HttpStatus.OK.equals(response.getStatusCode())) {
                 if (!response.getBody().equals("ok.")) {
                     return "Unhealthy";
@@ -530,7 +528,8 @@ public class MecmService {
             }
         } catch (RestClientException e) {
             // Invalid Ip Address
-            LOGGER.error("Mec host health check http request failed. Please ensure the ip address is valid, and the health-check module is installed. The status code is {}", e.getMessage());
+            LOGGER.error("Mec host health check http request failed. Please ensure the ip address is valid,"
+                + " and the health-check module is installed. The status code is {}", e.getMessage());
             return "Http Request Failed";
         }
     }
