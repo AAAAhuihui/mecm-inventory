@@ -18,7 +18,6 @@
 package org.edgegallery.mecm.north.dto;
 
 import java.util.Map;
-
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
