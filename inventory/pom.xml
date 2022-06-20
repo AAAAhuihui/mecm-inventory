@@ -49,7 +49,11 @@
       </dependencies>
    </dependencyManagement>
    
-   <dependencies>      
+   <dependencies>
+      <dependency>
+         <groupId>com.sun.xml.stream</groupId>
+         <artifactId>sjsxp</artifactId>
+      </dependency>
       <dependency>
          <artifactId>tomcat-embed-core</artifactId>
          <exclusions>
@@ -276,9 +280,17 @@
                <artifactId>tomcat-embed-el</artifactId>
                <groupId>org.apache.tomcat.embed</groupId>
             </exclusion>
+            <exclusion>
+               <groupId>io.swagger</groupId>
+               <artifactId>swagger-core</artifactId>
+            </exclusion>
          </exclusions>
       </dependency>
       <!-- jackson -->
+      <dependency>
+         <groupId>io.swagger</groupId>
+         <artifactId>swagger-core</artifactId>
+      </dependency>
       <dependency>
          <groupId>com.fasterxml.jackson.core</groupId>
          <artifactId>jackson-core</artifactId>

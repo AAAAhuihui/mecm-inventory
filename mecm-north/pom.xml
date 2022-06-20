@@ -54,6 +54,10 @@
 
    <dependencies>
       <dependency>
+         <groupId>com.sun.xml.stream</groupId>
+         <artifactId>sjsxp</artifactId>
+      </dependency>
+      <dependency>
          <artifactId>netty-common</artifactId>
          <groupId>io.netty</groupId>
       </dependency>
