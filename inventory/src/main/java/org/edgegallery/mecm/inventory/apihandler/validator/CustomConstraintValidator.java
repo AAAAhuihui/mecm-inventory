@@ -46,7 +46,6 @@ public final class CustomConstraintValidator implements ConstraintValidator<Cust
      * @return true if valid, false otherwise
      */
     public boolean isValid(String param, ConstraintValidatorContext context) {
-        LOGGER.debug(context.getDefaultConstraintMessageTemplate());
         if (param == null) {
             return true;
         }
