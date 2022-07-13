@@ -60,7 +60,13 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         ddl-auto: validate
+    hibernate:
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
     open-in-view: false
+  mvc:
+    pathmatch:
+      matching-strategy: ANT_PATH_MATCHER
 
   main:
     allow-bean-definition-overriding: true
