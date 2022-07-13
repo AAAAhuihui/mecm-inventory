@@ -65,10 +65,16 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         ddl-auto: validate
     open-in-view: false
+    hibernate:
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
   http:
     multipart:
       max-file-size: 10MB
       max-request-size: 10MB
+  mvc:
+    pathmatch:
+      matching-strategy: ANT_PATH_MATCHER
 
 repository:
   appsource:
