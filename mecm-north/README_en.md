@@ -46,7 +46,18 @@ Mecm-north provides modules for other external systems to request internal modul
     servicecenter.port=30100
     servicecomb.name=mecm-north
     ```
+  
+#### Compile parent dependency repository
 
+  - Pull code
+    ```
+     git clone https://gitee.com/edgegallery/eg-parent.git
+    ```
+  - install dependencies
+    ```
+     mvn clean install
+    ```
+    
 - ### Compile and package
     Pull code from the code repository，default master Branch
     
