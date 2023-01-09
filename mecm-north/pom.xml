@@ -239,6 +239,10 @@
                <groupId>org.apache.tomcat.embed</groupId>
                <artifactId>tomcat-embed-websocket</artifactId>
             </exclusion>
+            <exclusion>
+               <groupId>javax.servlet</groupId>
+               <artifactId>javax.servlet-api</artifactId>
+            </exclusion>
          </exclusions>
       </dependency>
       <dependency>
@@ -256,6 +260,10 @@
             <exclusion>
                <groupId>com.fasterxml.jackson.core</groupId>
                <artifactId>jackson-databind</artifactId>
+            </exclusion>
+            <exclusion>
+               <artifactId>javax.activation-api</artifactId>
+               <groupId>javax.activation</groupId>
             </exclusion>
          </exclusions>
       </dependency>
@@ -321,6 +329,12 @@
       <dependency>
          <groupId>org.springframework.boot</groupId>
          <artifactId>spring-boot-starter-web</artifactId>
+         <exclusions>
+            <exclusion>
+               <artifactId>javax.annotation-api</artifactId>
+               <groupId>javax.annotation</groupId>
+            </exclusion>
+         </exclusions>
       </dependency>
       <dependency>
          <groupId>org.springframework.boot</groupId>

@@ -194,6 +194,14 @@
                <groupId>io.swagger</groupId>
                <artifactId>swagger-annotations</artifactId>
             </exclusion>
+            <exclusion>
+               <artifactId>javax.servlet-api</artifactId>
+               <groupId>javax.servlet</groupId>
+            </exclusion>
+            <exclusion>
+               <artifactId>javax.ws.rs-api</artifactId>
+               <groupId>javax.ws.rs</groupId>
+            </exclusion>
          </exclusions>
       </dependency>
       <dependency>
@@ -288,6 +296,10 @@
                <artifactId>tomcat-embed-el</artifactId>
                <groupId>org.apache.tomcat.embed</groupId>
             </exclusion>
+            <exclusion>
+               <artifactId>javax.servlet-api</artifactId>
+               <groupId>javax.servlet</groupId>
+            </exclusion>
          </exclusions>
       </dependency>
       <!-- jackson -->
@@ -343,6 +355,10 @@
             <exclusion>
                <groupId>org.springframework.boot</groupId>
                <artifactId>spring-boot-starter-logging</artifactId>
+            </exclusion>
+            <exclusion>
+               <artifactId>javax.annotation-api</artifactId>
+               <groupId>javax.annotation</groupId>
             </exclusion>
          </exclusions>
       </dependency>
@@ -407,6 +423,10 @@
                <groupId>org.springframework.security</groupId>
                <artifactId>spring-security-config</artifactId>
             </exclusion>
+            <exclusion>
+               <artifactId>javax.activation-api</artifactId>
+               <groupId>javax.activation</groupId>
+            </exclusion>
          </exclusions>
          <groupId>org.springframework.security.oauth.boot</groupId>
          <artifactId>spring-security-oauth2-autoconfigure</artifactId>
@@ -454,6 +474,16 @@
       <dependency>
          <groupId>org.glassfish.jersey.core</groupId>
          <artifactId>jersey-common</artifactId>
+         <exclusions>
+            <exclusion>
+               <artifactId>javax.ws.rs-api</artifactId>
+               <groupId>javax.ws.rs</groupId>
+            </exclusion>
+            <exclusion>
+               <artifactId>javax.annotation-api</artifactId>
+               <groupId>javax.annotation</groupId>
+            </exclusion>
+         </exclusions>
       </dependency>
       <!--log4j2 -->
       <dependency>
