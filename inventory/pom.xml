@@ -198,10 +198,6 @@
                <artifactId>javax.servlet-api</artifactId>
                <groupId>javax.servlet</groupId>
             </exclusion>
-            <exclusion>
-               <artifactId>javax.ws.rs-api</artifactId>
-               <groupId>javax.ws.rs</groupId>
-            </exclusion>
          </exclusions>
       </dependency>
       <dependency>
@@ -468,17 +464,9 @@
       </dependency>
       <!-- end of DB -->
       <dependency>
-         <groupId>javax.ws.rs</groupId>
-         <artifactId>javax.ws.rs-api</artifactId>
-      </dependency>
-      <dependency>
          <groupId>org.glassfish.jersey.core</groupId>
          <artifactId>jersey-common</artifactId>
          <exclusions>
-            <exclusion>
-               <artifactId>javax.ws.rs-api</artifactId>
-               <groupId>javax.ws.rs</groupId>
-            </exclusion>
             <exclusion>
                <artifactId>javax.annotation-api</artifactId>
                <groupId>javax.annotation</groupId>
