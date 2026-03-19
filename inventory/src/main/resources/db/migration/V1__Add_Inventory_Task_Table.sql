@@ -54,6 +54,10 @@
         primary key (mechost_id)
     );
 
+    -- Network planes configuration (JSONB), e.g. {"eth1": "n6-net-1", "eth2": "n6-net-2"}
+    alter table if exists mechostinventory
+        add column if not exists network_planes jsonb;
+
     create table if not exists mechwcapabilityinventory (
         capability_id varchar(255) not null,
         mechost_id varchar(255) not null,
@@ -81,6 +85,9 @@
           foreign key(mechost_id)
         	  references mechostinventory(mechost_id)
     );
+
+        alter table if exists mecapplicationinventory
+          add column if not exists app_ip varchar(64);
 
     create table if not exists tenantinventory (
         tenant_id  varchar(255) not null,

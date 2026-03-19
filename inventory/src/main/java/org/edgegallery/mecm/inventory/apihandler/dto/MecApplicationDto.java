@@ -65,4 +65,8 @@ public final class MecApplicationDto {
     @Size(max = 128, message = "status length exceeds max size")
     @Pattern(regexp = Constants.APP_STATUS_REGEX, message = "status is invalid. special characters not allowed")
     private String status;
+
+        @Size(max = 15, message = "app ip length exceeds max size")
+        @Pattern(regexp = Constants.IP_REGEX, message = "app ip is invalid")
+        private String appIp;
 }

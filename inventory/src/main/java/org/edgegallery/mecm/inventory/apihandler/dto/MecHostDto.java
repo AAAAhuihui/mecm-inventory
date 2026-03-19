@@ -17,6 +17,7 @@
 package org.edgegallery.mecm.inventory.apihandler.dto;
 
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 import javax.validation.Valid;
 import javax.validation.constraints.NotEmpty;
@@ -99,4 +100,8 @@ public final class MecHostDto {
 
     @Size(max = 32, message = "config upload status length exceeds max size")
     private String configUploadStatus;
+
+    // 网络平面配置（支持多物理平面）
+    // 示例：{"eth1": "n6-net-1", "eth2": "n6-net-2"}
+    private Map<String, String> networkPlanes;
 }

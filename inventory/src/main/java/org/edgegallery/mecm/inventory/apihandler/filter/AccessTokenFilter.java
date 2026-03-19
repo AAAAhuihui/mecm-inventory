@@ -46,6 +46,7 @@ public class AccessTokenFilter extends OncePerRequestFilter {
     private static final Logger LOGGER = LoggerFactory.getLogger(AccessTokenFilter.class);
     private static final String INVALID_TOKEN_MESSAGE = "Invalid access token";
     private static final String[] HEALTH_URI = {"/inventory/v1/health"};
+    private static final String[] INTERNAL_URI = {"/inventory/v1/internal/"};
 
     @Autowired
     TokenStore jwtTokenStore;
@@ -56,6 +57,14 @@ public class AccessTokenFilter extends OncePerRequestFilter {
         // Skip token check for health check URI
         if (request.getRequestURI() != null && (Arrays.stream(HEALTH_URI)
             .anyMatch(request.getRequestURI()::contains))) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        if (request.getRequestURI() != null && (Arrays.stream(INTERNAL_URI)
+            .anyMatch(request.getRequestURI()::contains))) {
+            LOGGER.info("[AppIPSync-Inventory] skip access token validation for internal uri: {}",
+                    request.getRequestURI());
             filterChain.doFilter(request, response);
             return;
         }

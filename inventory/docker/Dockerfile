@@ -36,10 +36,8 @@ ENV GROUP_NAME=eggroup
 ENV ENV="/etc/profile"
 
 # Create an app user so our program doesn't run as root.
-RUN apk update &&\
-    apk add shadow &&\
-    groupadd -r -g $GID $GROUP_NAME &&\
-    useradd -r -u $UID -g $GID -d $APP_HOME -s /sbin/nologin -c "Docker image user" $USER_NAME
+RUN addgroup -g $GID -S $GROUP_NAME &&\
+    adduser -u $UID -G $GROUP_NAME -h $APP_HOME -s /sbin/nologin -D -H $USER_NAME
 
 # Set the working directory.
 WORKDIR $APP_HOME

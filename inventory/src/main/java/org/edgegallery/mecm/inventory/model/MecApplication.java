@@ -58,6 +58,9 @@ public final class MecApplication implements BaseModel {
     @Column(name = "status")
     private String status;
 
+    @Column(name = "app_ip")
+    private String appIp;
+
     @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "mechost_id", nullable = false)
     private MecHost mecAppHost;

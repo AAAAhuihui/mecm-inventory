@@ -59,6 +59,9 @@
         modified_time varchar(200),
         primary key (mechost_id)
     );
+    -- Network planes configuration (JSONB), e.g. {"eth1": "n6-net-1", "eth2": "n6-net-2"}
+      alter table if exists mechostinventory
+        add column if not exists network_planes jsonb;
 
     create table mechwcapabilityinventory (
         capability_id varchar(255) not null,
