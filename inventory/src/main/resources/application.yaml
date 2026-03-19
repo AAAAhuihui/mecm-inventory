@@ -58,7 +58,9 @@ spring:
     username: ${INVENTORY_DB_USER:inventory}
     password: ${INVENTORY_DB_PASSWORD:}
     initialization-mode: always
-    schema: classpath:db/migration/V1__Add_Inventory_Task_Table.sql
+    schema:
+      - classpath:db/migration/V1__Add_Inventory_Task_Table.sql
+      - classpath:db/migration/V2__Add_Task_Inventory_Table.sql
   jpa:
     properties:
       hibernate:

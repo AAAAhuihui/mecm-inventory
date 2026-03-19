@@ -1,5 +1,5 @@
 /*
- *  Copyright 2020 Huawei Technologies Co., Ltd.
+ *  Copyright 2026 Huawei Technologies Co., Ltd.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -14,24 +14,22 @@
  *  limitations under the License.
  */
 
-package org.edgegallery.mecm.inventory.model;
+package org.edgegallery.mecm.inventory.service.repository;
+
+import java.util.List;
+import org.edgegallery.mecm.inventory.model.TaskRecord;
+import org.springframework.data.repository.CrudRepository;
 
 /**
- * Type of model.
+ * Task repository.
  */
-public enum ModelType {
-    MEPM,
-    APP_STORE,
-    MEC_HOST,
-    TENANT,
-    MEC_HW_CAPABILITY,
-    MEC_APPLICATION,
-    DNS_RULE,
-    TRAFFIC_RULE,
-    TRAFFIC_FILTER,
-    APPD_RULE,
-    DST_INTERFACE,
-    TUNNEL_INFO,
-    APP_REPO,
-    TASK
+public interface TaskRepository extends CrudRepository<TaskRecord, String> {
+
+    /**
+     * Get tasks by tenant ordered by created time desc.
+     *
+     * @param tenantId tenant identifier
+     * @return task list
+     */
+    List<TaskRecord> findByTenantIdOrderByCreatedTimeDesc(String tenantId);
 }
