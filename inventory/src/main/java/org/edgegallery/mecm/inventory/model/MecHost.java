@@ -17,9 +17,11 @@
 package org.edgegallery.mecm.inventory.model;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.Set;
 import javax.persistence.CascadeType;
 import javax.persistence.Column;
+import javax.persistence.Convert;
 import javax.persistence.Entity;
 import javax.persistence.FetchType;
 import javax.persistence.Id;
@@ -29,6 +31,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.edgegallery.mecm.inventory.utils.JsonConverter;
 import org.hibernate.annotations.CreationTimestamp;
 
 /**
@@ -88,6 +91,10 @@ public final class MecHost implements BaseModel {
 
     @Column(name = "vim")
     private String vim;
+
+    @Column(name = "network_planes", columnDefinition = "jsonb")
+    @Convert(converter = JsonConverter.class)
+    private Map<String, String> networkPlanes;
 
     @OneToMany(mappedBy = "mecHost", cascade = CascadeType.ALL, fetch = FetchType.EAGER, orphanRemoval = true)
     private Set<MecHwCapability> hwcapabilities;

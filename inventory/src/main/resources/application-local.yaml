@@ -1,0 +1,24 @@
+# 本地测试配置
+spring:
+  datasource:
+    url: jdbc:postgresql://127.0.0.1:5432/mecm
+    username: mecm_user
+    password: mecm_pass
+    initialization-mode: never  # 表已存在，不重新初始化
+  jpa:
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        ddl-auto: validate  # 只验证表结构，不修改
+    show-sql: true  # 显示 SQL 日志方便调试
+    
+server:
+  port: 8093
+  ssl:
+    enabled: false  # 本地测试禁用 SSL
+
+security:
+  oauth2:
+    resource:
+      jwt:
+        key-uri: http://localhost:8067/oauth/token_key  # 暂时配置，可能不可用但不影响测试

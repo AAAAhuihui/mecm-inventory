@@ -37,6 +37,7 @@ import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
 import org.apache.servicecomb.provider.rest.common.RestSchema;
 import org.edgegallery.mecm.inventory.apihandler.dto.MecApplicationDto;
+import org.edgegallery.mecm.inventory.apihandler.dto.AppInstanceIpUpdateDto;
 import org.edgegallery.mecm.inventory.apihandler.dto.MecHostDto;
 import org.edgegallery.mecm.inventory.apihandler.dto.MecHwCapabilityDto;
 import org.edgegallery.mecm.inventory.model.MecApplication;
@@ -401,6 +402,7 @@ public class MecHostInventoryHandler {
         MecApplication app = InventoryUtilities.getModelMapper().map(mecAppDto, MecApplication.class);
         app.setTenantId(tenantId);
         app.setCapabilities(null);
+        app.setAppIp(mecAppDto.getAppIp());
 
         String capabilities = mecAppDto.getCapabilities().stream().map(Object::toString)
                 .collect(Collectors.joining(","));
@@ -458,6 +460,9 @@ public class MecHostInventoryHandler {
         appdb.setAppName(app.getAppName());
         appdb.setPackageId(app.getPackageId());
         appdb.setStatus(app.getStatus());
+        if (app.getAppIp() != null && !app.getAppIp().isEmpty()) {
+            appdb.setAppIp(app.getAppIp());
+        }
 
         Status status = service.updateRecord(appdb, appRepository);
 
@@ -487,12 +492,49 @@ public class MecHostInventoryHandler {
 
         MecApplication application = service.getRecord(appId, appRepository);
         MecApplicationDto mecAppDto = InventoryUtilities.getModelMapper().map(application, MecApplicationDto.class);
+        mecAppDto.setAppIp(application.getAppIp());
         if (application.getCapabilities() != null) {
             List<String> capList = Arrays.asList(application.getCapabilities().split(",", -1));
             mecAppDto.setCapabilities(capList);
         }
         return new ResponseEntity<>(mecAppDto, HttpStatus.OK);
     }
+
+        /**
+         * Internal endpoint to update app ip using appinstance_id.
+         *
+         * @param tenantId tenant id
+         * @param appId app instance id
+         * @param request app ip request
+         * @return status
+         */
+        @ApiOperation(value = "Internal app ip update API", response = String.class)
+        @PutMapping(path = "/internal/tenants/{tenant_id}/apps/{app_id}/app_ip", produces =
+            MediaType.APPLICATION_JSON_VALUE)
+        public ResponseEntity<Status> updateApplicationIpInternal(
+            @PathVariable(TENANT_ID) @Pattern(regexp = Constants.TENANT_ID_REGEX)
+            @Size(max = 64) String tenantId,
+            @PathVariable("app_id") @Pattern(regexp = Constants.APPLICATION_ID_REGEX)
+            @Size(max = 64) String appId,
+            @Valid @RequestBody AppInstanceIpUpdateDto request) {
+
+        LOGGER.info("[AppIPSync-Inventory] receive update tenantId={} appId={} source={} appIp={}",
+            tenantId, appId, request.getSource(), request.getAppIp());
+
+        MecApplication appDb = service.getRecord(appId, appRepository);
+        if (!tenantId.equals(appDb.getTenantId())) {
+            LOGGER.error("[AppIPSync-Inventory] tenant mismatch in internal update tenantId={} appId={}",
+                tenantId, appId);
+            throw new IllegalArgumentException("tenant id mismatch");
+        }
+
+        appDb.setAppIp(request.getAppIp());
+        Status status = service.updateRecord(appDb, appRepository);
+
+        LOGGER.info("[AppIPSync-Inventory] update success tenantId={} appId={} appIp={}",
+            tenantId, appId, request.getAppIp());
+        return new ResponseEntity<>(status, HttpStatus.OK);
+        }
 
     /**
      * Deletes application record entry into the Inventory.
