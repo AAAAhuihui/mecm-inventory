@@ -61,6 +61,7 @@ spring:
     schema:
       - classpath:db/migration/V1__Add_Inventory_Task_Table.sql
       - classpath:db/migration/V2__Add_Task_Inventory_Table.sql
+      - classpath:db/migration/V3__Add_Signaling_Details_Table.sql
   jpa:
     properties:
       hibernate:
@@ -77,6 +78,13 @@ spring:
   mvc:
     pathmatch:
       matching-strategy: ANT_PATH_MATCHER
+
+#### NEF Configuration ####
+nef:
+  endpoint: ${NEF_ENDPOINT:http://192.168.254.154:8000/3gpp-traffic-influence/v1/af001/subscriptions}
+  tls_enable: ${NEF_TLS_ENABLE:false}
+  timeout_sec: ${NEF_TIMEOUT_SEC:15}
+  afServiceId: ${NEF_AF_SERVICE_ID:Service1}
 
 repository:
   appsource:

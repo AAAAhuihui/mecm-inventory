@@ -28,17 +28,42 @@ import org.springframework.data.repository.query.Param;
  * MEC application repository.
  */
 public interface MecApplicationRepository extends CrudRepository<MecApplication, String>,
-        BaseRepository<MecApplication> {
+    BaseRepository<MecApplication> {
 
-    @Transactional
-    @Modifying
-    @Query("delete from MecApplication m where m.tenantId=:tenantId")
-    void deleteByTenantId(@Param("tenantId") String tenantId);
+  @Transactional
+  @Modifying
+  @Query("delete from MecApplication m where m.tenantId=:tenantId")
+  void deleteByTenantId(@Param("tenantId") String tenantId);
 
-    @Query(value = "SELECT * FROM mecapplicationinventory m WHERE m.tenant_id=:tenantId", nativeQuery = true)
-    List<MecApplication> findByTenantId(@Param("tenantId") String tenantId);
+  @Query(value = "SELECT * FROM mecapplicationinventory m WHERE m.tenant_id=:tenantId", nativeQuery = true)
+  List<MecApplication> findByTenantId(@Param("tenantId") String tenantId);
 
-    @Query(value = "SELECT * FROM mecapplicationinventory m WHERE m.role=:role", nativeQuery = true)
-    List<MecApplication> findByUserRole(@Param("role") String role);
+  @Query(value = "SELECT * FROM mecapplicationinventory m WHERE m.role=:role", nativeQuery = true)
+  List<MecApplication> findByUserRole(@Param("role") String role);
+
+  /**
+   * 查询所有appinstance_id并按appinstance_id升序排序
+   * 
+   * @return appinstance_id列表
+   */
+  @Query(value = "SELECT appinstance_id FROM mecapplicationinventory ORDER BY appinstance_id ASC", nativeQuery = true)
+  List<String> findAllAppinstanceIdByOrderByAppinstanceIdAsc();
+
+  /**
+   * 查询所有appinstance_id和对应的N6IP
+   * 
+   * @return 包含appinstance_id和N6IP的对象数组列表
+   */
+  @Query(value = "SELECT appinstance_id, app_ip as n6_ip, app_name FROM mecapplicationinventory", nativeQuery = true)
+  List<Object[]> findAllAppinstanceIdWithN6Ip();
+
+  /**
+   * 通过appinstance_id查询app_name
+   * 
+   * @param appInstanceId app实例ID
+   * @return app名称
+   */
+  @Query(value = "SELECT app_name FROM mecapplicationinventory WHERE appinstance_id=:appInstanceId", nativeQuery = true)
+  String findAppNameByAppInstanceId(@Param("appInstanceId") String appInstanceId);
+
 }
-
