@@ -28,7 +28,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -68,14 +68,16 @@ public class SignalingController {
     }
 
     /**
-     * Get all signaling policies
+     * Get all signaling policies with pagination
      */
-    @ApiOperation(value = "Gets all signaling policies", response = String.class)
+    @ApiOperation(value = "Gets all signaling policies with pagination", response = String.class)
     @GetMapping(path = "/signaling/show", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Map<String, Object>> getAllSignalingPolicies() {
+    public ResponseEntity<Map<String, Object>> getAllSignalingPolicies(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "9") Integer size) {
 
-        logger.info("Retrieving all signaling policies");
-        Map<String, Object> result = signalingService.getAllSignalingPolicies();
+        logger.info("Retrieving all signaling policies with pagination, page: {}, size: {}", page, size);
+        Map<String, Object> result = signalingService.getAllSignalingPolicies(page, size);
 
         // Since the service now returns code in the response body, we can check it
         Integer responseCode = (Integer) result.get("code");

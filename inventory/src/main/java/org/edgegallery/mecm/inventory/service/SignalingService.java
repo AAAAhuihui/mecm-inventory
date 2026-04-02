@@ -346,15 +346,27 @@ public class SignalingService {
         }
     }
 
-    public Map<String, Object> getAllSignalingPolicies() {
+    public Map<String, Object> getAllSignalingPolicies(Integer page, Integer size) {
         try {
-            List<SignalingDetails> policies = signalingDetailsRepository.findAll();
-            int count = policies.size();
-            String msg = "查询成功，共" + count + "条数据";
+            // 计算总数
+            List<SignalingDetails> allPolicies = signalingDetailsRepository.findAll();
+            int total = allPolicies.size();
+
+            // 计算分页
+            int start = (page - 1) * size;
+            int end = Math.min(start + size, total);
+
+            // 截取分页数据
+            List<SignalingDetails> paginatedPolicies = new ArrayList<>();
+            if (start < total) {
+                paginatedPolicies = allPolicies.subList(start, end);
+            }
+
+            String msg = "查询成功，共" + total + "条数据";
 
             // Convert SignalingDetails to map with ueType and ueIp
             List<Map<String, Object>> dataWithUeInfo = new ArrayList<>();
-            for (SignalingDetails policy : policies) {
+            for (SignalingDetails policy : paginatedPolicies) {
                 Map<String, Object> policyMap = new HashMap<>();
                 policyMap.put("id", policy.getId());
                 policyMap.put("transactionId", policy.getTransactionId());
@@ -389,6 +401,9 @@ public class SignalingService {
             Map<String, Object> result = new HashMap<>();
             result.put("code", 200);
             result.put("data", dataWithUeInfo);
+            result.put("total", total);
+            result.put("page", page);
+            result.put("size", size);
             result.put("msg", msg);
             return result;
 
@@ -397,6 +412,9 @@ public class SignalingService {
             Map<String, Object> errorResult = new HashMap<>();
             errorResult.put("code", 500);
             errorResult.put("data", new ArrayList<>());
+            errorResult.put("total", 0);
+            errorResult.put("page", page);
+            errorResult.put("size", size);
             errorResult.put("msg", "查询失败：" + e.getMessage());
             return errorResult;
         }

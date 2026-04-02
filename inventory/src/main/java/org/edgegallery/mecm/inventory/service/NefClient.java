@@ -204,10 +204,6 @@ public class NefClient {
         String sd = (String) requestParams.get("sd");
         String networkSegment = (String) requestParams.get("networkSegment");
 
-        // Build traffic rule
-        String targetNetwork = networkSegment != null && !networkSegment.isEmpty() ? networkSegment : "10.60.0.0/16";
-        String flowRule = String.format("permit out ip from %s to %s", targetIp, targetNetwork);
-
         // Build SNSSAI
         Map<String, Object> snssai = new HashMap<>();
         try {
@@ -217,24 +213,38 @@ public class NefClient {
         }
         snssai.put("sd", sd != null ? sd : "010203"); // Default value
 
-        // Build traffic filter
-        Map<String, Object> trafficFilter = new HashMap<>();
-        trafficFilter.put("flowId", 1);
-        trafficFilter.put("flowDescriptions", Arrays.asList(flowRule));
-
         // Build traffic route
         Map<String, Object> trafficRoute = new HashMap<>();
         trafficRoute.put("dnai", dnai);
 
-        // Build final request
+        // Build final request based on UE type
         Map<String, Object> request = new HashMap<>();
         request.put("afServiceId", nefConfig.getAfServiceId());
         request.put("dnn", dnn != null ? dnn : "default-dnn"); // Default DNN
         request.put("snssai", snssai);
-        request.put("anyUeInd", "all".equals(ueType)); // If ueType is "all" then true, otherwise false
         request.put("notificationDestination", "http://af:8000/test123"); // Fixed notification address
-        request.put("trafficFilters", Arrays.asList(trafficFilter));
         request.put("trafficRoutes", Arrays.asList(trafficRoute));
+
+        if ("single".equals(ueType)) {
+            // For single UE, use the format provided by user
+            request.put("ipv4Addr", ueIp != null ? ueIp : "");
+            request.put("AfAppId", appId);
+            request.put("suppFeat", "01"); // Fixed value
+        } else {
+            // For all UE, use the standard format provided by user
+            // Build traffic rule
+            String targetNetwork = networkSegment != null && !networkSegment.isEmpty() ? networkSegment
+                    : "10.60.0.0/16";
+            String flowRule = String.format("permit out ip from %s to %s", targetIp, targetNetwork);
+
+            // Build traffic filter
+            Map<String, Object> trafficFilter = new HashMap<>();
+            trafficFilter.put("flowId", 1);
+            trafficFilter.put("flowDescriptions", Arrays.asList(flowRule));
+
+            request.put("anyUeInd", true); // For all UE
+            request.put("trafficFilters", Arrays.asList(trafficFilter));
+        }
 
         return request;
     }
