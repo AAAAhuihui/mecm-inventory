@@ -17,10 +17,12 @@
 package org.edgegallery.mecm.inventory.apihandler;
 
 import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiParam;
 import io.swagger.annotations.ApiOperation;
 import org.apache.servicecomb.provider.rest.common.RestSchema;
 import org.edgegallery.mecm.inventory.apihandler.dto.SignalingPolicyRequest;
 import org.edgegallery.mecm.inventory.service.SignalingService;
+import org.edgegallery.mecm.inventory.utils.Constants;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +35,8 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
+import javax.validation.constraints.Pattern;
+import javax.validation.constraints.Size;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -84,6 +88,26 @@ public class SignalingController {
         HttpStatus status = (responseCode != null && responseCode == 200) ? HttpStatus.OK
                 : HttpStatus.INTERNAL_SERVER_ERROR;
 
+        return new ResponseEntity<>(result, status);
+    }
+
+    /**
+     * 按租户与appInstanceId列表查询信令进度
+     */
+    @ApiOperation(value = "Gets signaling progress by tenant and appInstanceIds", response = String.class)
+    @GetMapping(path = "/tenants/{tenant_id}/signaling/progress", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<Map<String, Object>> getSignalingProgressByTenant(
+            @ApiParam(value = "tenant identifier") @PathVariable("tenant_id")
+            @Pattern(regexp = Constants.TENANT_ID_REGEX) @Size(max = 64) String tenantId,
+            @ApiParam(value = "comma separated app instance ids")
+            @RequestParam(value = "appInstanceIds", required = false) String appInstanceIds) {
+
+        logger.info("Retrieving signaling progress, tenantId: {}, appInstanceIds: {}", tenantId, appInstanceIds);
+        Map<String, Object> result = signalingService.getSignalingProgressByTenant(tenantId, appInstanceIds);
+
+        Integer responseCode = (Integer) result.get("code");
+        HttpStatus status = (responseCode != null && responseCode == 200) ? HttpStatus.OK
+                : HttpStatus.INTERNAL_SERVER_ERROR;
         return new ResponseEntity<>(result, status);
     }
 

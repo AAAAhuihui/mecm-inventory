@@ -17,6 +17,7 @@
 package org.edgegallery.mecm.inventory.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.edgegallery.mecm.inventory.model.MecApplication;
 import org.edgegallery.mecm.inventory.model.SignalingDetails;
 import org.edgegallery.mecm.inventory.apihandler.dto.SignalingPolicyRequest;
 import org.edgegallery.mecm.inventory.service.repository.SignalingDetailsRepository;
@@ -29,10 +30,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 @Transactional
@@ -422,6 +426,179 @@ public class SignalingService {
             errorResult.put("msg", "查询失败：" + e.getMessage());
             return errorResult;
         }
+    }
+
+    public Map<String, Object> getSignalingProgressByTenant(String tenantId, String appInstanceIds) {
+        try {
+            List<MecApplication> tenantApps = mecApplicationRepository.findByTenantId(tenantId);
+            Set<String> tenantAppIdSet = new HashSet<>();
+            for (MecApplication app : tenantApps) {
+                if (app != null && app.getAppInstanceId() != null && !app.getAppInstanceId().isEmpty()) {
+                    tenantAppIdSet.add(app.getAppInstanceId());
+                }
+            }
+
+            Set<String> requestAppIdSet = new HashSet<>();
+            if (appInstanceIds != null && !appInstanceIds.trim().isEmpty()) {
+                requestAppIdSet.addAll(Arrays.asList(appInstanceIds.split(",")));
+            }
+
+            Set<String> targetAppIdSet = new HashSet<>();
+            if (requestAppIdSet.isEmpty()) {
+                targetAppIdSet.addAll(tenantAppIdSet);
+            } else {
+                for (String appInstanceId : requestAppIdSet) {
+                    if (appInstanceId != null) {
+                        String normalized = appInstanceId.trim();
+                        if (!normalized.isEmpty() && tenantAppIdSet.contains(normalized)) {
+                            targetAppIdSet.add(normalized);
+                        }
+                    }
+                }
+            }
+
+            List<Map<String, Object>> progressList = new ArrayList<>();
+            if (targetAppIdSet.isEmpty()) {
+                Map<String, Object> result = new HashMap<>();
+                result.put("code", 200);
+                result.put("data", progressList);
+                result.put("msg", "查询成功，共0条数据");
+                return result;
+            }
+
+            List<String> targetAppIdList = new ArrayList<>(targetAppIdSet);
+            List<SignalingDetails> signalingList = signalingDetailsRepository.findByAppInstanceIdIn(targetAppIdList);
+            Map<String, SignalingDetails> latestByApp = new HashMap<>();
+            for (SignalingDetails item : signalingList) {
+                if (item == null || item.getAppInstanceId() == null) {
+                    continue;
+                }
+                SignalingDetails current = latestByApp.get(item.getAppInstanceId());
+                if (current == null || isNewer(item, current)) {
+                    latestByApp.put(item.getAppInstanceId(), item);
+                }
+            }
+
+            for (String appInstanceId : targetAppIdList) {
+                SignalingDetails latest = latestByApp.get(appInstanceId);
+                Map<String, Object> progress = new HashMap<>();
+                progress.put("appInstanceId", appInstanceId);
+                if (latest == null) {
+                    progress.put("status", "NONE");
+                    progress.put("signalingId", null);
+                    progress.put("updateTime", null);
+                } else {
+                    progress.put("status", latest.getStatus());
+                    progress.put("signalingId", latest.getId());
+                    progress.put("updateTime", latest.getUpdateTime());
+                }
+                progressList.add(progress);
+            }
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("code", 200);
+            result.put("data", progressList);
+            result.put("msg", "查询成功，共" + progressList.size() + "条数据");
+            return result;
+        } catch (Exception e) {
+            logger.error("Failed to retrieve signaling progress by tenant: {}", tenantId, e);
+            Map<String, Object> errorResult = new HashMap<>();
+            errorResult.put("code", 500);
+            errorResult.put("data", new ArrayList<>());
+            errorResult.put("msg", "查询失败：" + e.getMessage());
+            return errorResult;
+        }
+    }
+
+    public void cleanupTaskSignaling(String tenantId, String appId, String appInstanceId) {
+        Set<String> targetAppInstanceIds = new HashSet<>();
+        if (appInstanceId != null && !appInstanceId.trim().isEmpty()) {
+            targetAppInstanceIds.add(appInstanceId.trim());
+        }
+
+        if (targetAppInstanceIds.isEmpty() && appId != null && !appId.trim().isEmpty()) {
+            List<MecApplication> tenantApps = mecApplicationRepository.findByTenantId(tenantId);
+            for (MecApplication app : tenantApps) {
+                if (app != null && appId.equals(app.getPackageId())
+                        && app.getAppInstanceId() != null && !app.getAppInstanceId().isEmpty()) {
+                    targetAppInstanceIds.add(app.getAppInstanceId());
+                }
+            }
+        }
+
+        if (targetAppInstanceIds.isEmpty()) {
+            logger.info("No app instance matched for signaling cleanup, tenantId: {}, appId: {}, appInstanceId: {}",
+                    tenantId, appId, appInstanceId);
+            return;
+        }
+
+        List<SignalingDetails> signalings = signalingDetailsRepository
+                .findByAppInstanceIdIn(new ArrayList<>(targetAppInstanceIds));
+        for (SignalingDetails signaling : signalings) {
+            try {
+                if (signaling == null || signaling.getId() == null) {
+                    continue;
+                }
+
+                String transactionId = signaling.getTransactionId();
+                if ("FAILED".equals(signaling.getStatus()) || transactionId == null || transactionId.trim().isEmpty()
+                        || transactionId.startsWith("nef-")) {
+                    signalingDetailsRepository.deleteById(signaling.getId());
+                    continue;
+                }
+
+                Map<String, Object> deleteResult = nefClient.deleteTrafficInfluenceRequest(transactionId);
+                boolean nefSuccess = Boolean.TRUE.equals(deleteResult.get("success"));
+                if (!nefSuccess) {
+                    Object statusCodeObj = deleteResult.get("statusCode");
+                    Integer statusCode = null;
+                    if (statusCodeObj instanceof Number) {
+                        statusCode = ((Number) statusCodeObj).intValue();
+                    }
+                    Object responseBodyObj = deleteResult.get("responseBody");
+                    String responseBody = responseBodyObj == null
+                            ? "NEF cancellation failed during task deletion"
+                            : String.valueOf(responseBodyObj);
+
+                    signaling.setStatus("CANCEL_FAILED");
+                    signaling.setResponseCode(statusCode);
+                    signaling.setResponseBody(responseBody);
+                    signaling.setUpdateTime(new Timestamp(System.currentTimeMillis()));
+                    signalingDetailsRepository.save(signaling);
+
+                    logger.warn("NEF cancellation failed but task deletion will continue, signalingId: {}, statusCode: {}",
+                            signaling.getId(), statusCode);
+                    continue;
+                }
+                signalingDetailsRepository.deleteById(signaling.getId());
+            } catch (Exception ex) {
+                logger.warn("Failed to cleanup signaling during task deletion, signalingId: {}",
+                        signaling == null ? null : signaling.getId(), ex);
+            }
+        }
+    }
+
+    private boolean isNewer(SignalingDetails candidate, SignalingDetails baseline) {
+        Timestamp candidateTime = candidate.getUpdateTime() != null ? candidate.getUpdateTime() : candidate.getCreateTime();
+        Timestamp baselineTime = baseline.getUpdateTime() != null ? baseline.getUpdateTime() : baseline.getCreateTime();
+        if (candidateTime != null && baselineTime != null) {
+            return candidateTime.after(baselineTime);
+        }
+        if (candidateTime != null) {
+            return true;
+        }
+        if (baselineTime != null) {
+            return false;
+        }
+        Long candidateId = candidate.getId();
+        Long baselineId = baseline.getId();
+        if (candidateId == null) {
+            return false;
+        }
+        if (baselineId == null) {
+            return true;
+        }
+        return candidateId > baselineId;
     }
 
     /**
