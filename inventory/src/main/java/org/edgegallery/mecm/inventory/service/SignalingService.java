@@ -113,6 +113,7 @@ public class SignalingService {
             reqPayload.put("sst", request.getSst());
             reqPayload.put("sd", request.getSd());
             reqPayload.put("networkSegment", request.getNetworkSegment());
+            reqPayload.put("upf", request.getUpf());
 
             String requestPayload = objectMapper.writeValueAsString(reqPayload);
 
@@ -145,7 +146,8 @@ public class SignalingService {
                     request.getDnn(),
                     request.getSst(),
                     request.getSd(),
-                    request.getNetworkSegment());
+                    request.getNetworkSegment(),
+                    request.getUpf());
             signalingDetails.setId(nextId);
 
             // Set request payload
@@ -224,7 +226,8 @@ public class SignalingService {
                     request.getDnn(),
                     request.getSst(),
                     request.getSd(),
-                    request.getNetworkSegment());
+                    request.getNetworkSegment(),
+                    request.getUpf());
 
             failedSignaling.setRequestPayload("ERROR: " + e.getMessage());
             failedSignaling.setStatus("FAILED");
@@ -379,6 +382,7 @@ public class SignalingService {
                 policyMap.put("sst", policy.getSst());
                 policyMap.put("sd", policy.getSd());
                 policyMap.put("networkSegment", policy.getNetworkSegment());
+                policyMap.put("upf", policy.getUpf());
                 policyMap.put("requestPayload", policy.getRequestPayload());
                 policyMap.put("responseCode", policy.getResponseCode());
                 policyMap.put("responseBody", policy.getResponseBody());

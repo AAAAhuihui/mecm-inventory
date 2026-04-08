@@ -43,6 +43,8 @@ public class SignalingPolicyRequest {
 
     private String networkSegment; // Network segment for "all" UE type
 
+    private String upf; // UPF
+
     // Constructors
     public SignalingPolicyRequest() {
     }
@@ -118,5 +120,13 @@ public class SignalingPolicyRequest {
 
     public void setNetworkSegment(String networkSegment) {
         this.networkSegment = networkSegment;
+    }
+
+    public String getUpf() {
+        return upf;
+    }
+
+    public void setUpf(String upf) {
+        this.upf = upf;
     }
 }

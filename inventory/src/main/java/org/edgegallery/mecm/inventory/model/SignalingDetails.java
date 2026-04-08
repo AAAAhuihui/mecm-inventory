@@ -60,6 +60,9 @@ public class SignalingDetails {
     @Column(name = "network_segment")
     private String networkSegment;
 
+    @Column(name = "upf")
+    private String upf;
+
     @Column(name = "request_payload", columnDefinition = "TEXT")
     private String requestPayload;
 
@@ -83,7 +86,7 @@ public class SignalingDetails {
     }
 
     public SignalingDetails(String appInstanceId, String targetIp, String targetDnai, String ueType, String ueIp,
-            String dnn, String sst, String sd, String networkSegment) {
+            String dnn, String sst, String sd, String networkSegment, String upf) {
         this.appInstanceId = appInstanceId;
         this.targetIp = targetIp;
         this.targetDnai = targetDnai;
@@ -93,6 +96,7 @@ public class SignalingDetails {
         this.sst = sst;
         this.sd = sd;
         this.networkSegment = networkSegment;
+        this.upf = upf;
         this.status = "PENDING"; // 默认状态
         this.createTime = new Timestamp(System.currentTimeMillis());
         this.updateTime = new Timestamp(System.currentTimeMillis());
@@ -185,6 +189,14 @@ public class SignalingDetails {
 
     public void setNetworkSegment(String networkSegment) {
         this.networkSegment = networkSegment;
+    }
+
+    public String getUpf() {
+        return upf;
+    }
+
+    public void setUpf(String upf) {
+        this.upf = upf;
     }
 
     public String getRequestPayload() {
