@@ -16,11 +16,12 @@
 
 package org.edgegallery.mecm.inventory.service.repository;
 
+import java.util.List;
 import org.edgegallery.mecm.inventory.model.SignalingDetails;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
 public interface SignalingDetailsRepository extends JpaRepository<SignalingDetails, Long> {
-    // JPA default methods already meet basic requirements
+    List<SignalingDetails> findByAppInstanceIdIn(List<String> appInstanceIds);
 }

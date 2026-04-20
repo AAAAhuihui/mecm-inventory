@@ -29,6 +29,7 @@ import javax.validation.constraints.Size;
 import org.apache.servicecomb.provider.rest.common.RestSchema;
 import org.edgegallery.mecm.inventory.apihandler.dto.TaskDto;
 import org.edgegallery.mecm.inventory.model.TaskRecord;
+import org.edgegallery.mecm.inventory.service.SignalingService;
 import org.edgegallery.mecm.inventory.service.repository.TaskRepository;
 import org.edgegallery.mecm.inventory.utils.Constants;
 import org.edgegallery.mecm.inventory.utils.Status;
@@ -46,6 +47,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 /**
  * Task inventory API handler.
@@ -63,6 +65,9 @@ public class TaskInventoryHandler {
 
     @Autowired
     private TaskRepository repository;
+
+    @Autowired
+    private SignalingService signalingService;
 
     /**
      * Create task record.
@@ -128,12 +133,16 @@ public class TaskInventoryHandler {
             @ApiParam(value = "tenant identifier") @PathVariable(TENANT_ID)
             @Pattern(regexp = Constants.TENANT_ID_REGEX) @Size(max = 64) String tenantId,
             @ApiParam(value = "task identifier") @PathVariable(TASK_ID)
-            @Size(max = 64) String taskId) {
+            @Size(max = 64) String taskId,
+            @ApiParam(value = "app instance id for signaling cleanup")
+            @RequestParam(value = "appInstanceId", required = false) @Size(max = 64) String appInstanceId) {
         TaskRecord record = repository.findById(taskId)
                 .orElseThrow(() -> new NoSuchElementException(Constants.RECORD_NOT_FOUND_ERROR));
         if (!tenantId.equals(record.getTenantId())) {
             throw new IllegalArgumentException("tenant id does not match task owner");
         }
+
+        signalingService.cleanupTaskSignaling(tenantId, record.getAppId(), appInstanceId);
         repository.deleteById(taskId);
         LOGGER.info("Task deleted, tenant {}, taskId {}", tenantId, taskId);
         return new ResponseEntity<>(new Status("Deleted"), HttpStatus.OK);
