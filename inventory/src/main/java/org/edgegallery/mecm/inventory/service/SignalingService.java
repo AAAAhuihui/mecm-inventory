@@ -294,24 +294,24 @@ public class SignalingService {
             Map<String, Object> deleteResult = nefClient
                     .deleteTrafficInfluenceRequest(signalingDetails.getTransactionId());
             boolean isNefSuccess = (Boolean) deleteResult.get("success");
+            boolean isSubscriptionNotFound = Boolean.TRUE.equals(deleteResult.get("subscriptionNotFound"));
+            boolean isCancelFailed = Boolean.TRUE.equals(deleteResult.get("cancelFailed"));
             logger.info(isNefSuccess ? "✅ NEF subscription cancellation successful, ID={}"
                     : "❌ NEF subscription cancellation failed, ID={}", policyId);
 
-            // 4. Execute database deletion only if NEF cancellation is successful
+            // 4. Execute database deletion based on NEF result
             boolean isDbSuccess = false;
-            if (isNefSuccess) {
+            if (isNefSuccess || isSubscriptionNotFound) {
                 try {
                     signalingDetailsRepository.deleteById(policyId);
                     logger.info("✅ Database record deletion successful, ID: {}", policyId);
                     isDbSuccess = true;
                 } catch (Exception e) {
                     logger.error("❌ Database record deletion failed, ID: {}, Error: {}", policyId, e.getMessage());
-                    Map<String, Object> errorResult = new HashMap<>();
-                    errorResult.put("code", 500);
-                    errorResult.put("data", new HashMap<>());
-                    errorResult.put("msg", "Database deletion failed: " + e.getMessage());
-                    return errorResult;
+                    isDbSuccess = false;
                 }
+            } else if (isCancelFailed) {
+                logger.info("⚠️ NEF deletion failed (CANCEL_FAILED), skipping database deletion, ID: {}", policyId);
             } else {
                 logger.info("⚠️ NEF cancellation failed, skipping database deletion, ID: {}", policyId);
             }
@@ -325,12 +325,18 @@ public class SignalingService {
             } else if (isNefSuccess && !isDbSuccess) {
                 finalMsg = "NEF cancellation successful - Database deletion failed";
                 resCode = 500;
-            } else if (!isNefSuccess && isDbSuccess) {
-                finalMsg = "NEF cancellation failed - Database deletion successful";
-                resCode = 502; // Bad Gateway
+            } else if (isSubscriptionNotFound && isDbSuccess) {
+                finalMsg = "NEF subscription not found - Database deletion successful";
+                resCode = 200;
+            } else if (isSubscriptionNotFound && !isDbSuccess) {
+                finalMsg = "NEF subscription not found - Database deletion failed";
+                resCode = 500;
+            } else if (isCancelFailed) {
+                finalMsg = "NEF deletion failed (CANCEL_FAILED) - Please contact administrator";
+                resCode = 502;
             } else {
                 finalMsg = "NEF cancellation failed - Database deletion skipped";
-                resCode = 502; // Bad Gateway
+                resCode = 502;
             }
 
             logger.info("==================== Cancel signaling result ====================");
@@ -343,7 +349,7 @@ public class SignalingService {
             // Prepare response according to frontend expectation
             Map<String, Object> result = new HashMap<>();
             result.put("code", resCode);
-            if (isNefSuccess) {
+            if ((isNefSuccess || isSubscriptionNotFound) && isDbSuccess) {
                 result.put("data", createDataMap("id", policyId));
             } else {
                 result.put("data", new HashMap<>()); // Empty data on error

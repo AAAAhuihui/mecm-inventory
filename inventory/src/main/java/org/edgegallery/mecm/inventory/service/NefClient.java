@@ -172,10 +172,43 @@ public class NefClient {
 
                 result.put("statusCode", statusCode);
                 result.put("responseBody", responseBody);
-                // 3GPP standard: 200 / 204 both indicate successful deletion
-                result.put("success", statusCode == 200 || statusCode == 204);
 
-                logger.info("NEF delete request completed, status: {}, response: {}", statusCode, responseBody);
+                // Parse response body to extract title field for error handling
+                String title = null;
+                if (responseBody != null && !responseBody.isEmpty()) {
+                    try {
+                        Map<String, Object> responseJson = objectMapper.readValue(responseBody, Map.class);
+                        title = (String) responseJson.get("title");
+                        result.put("title", title);
+                        logger.info("Extracted title from response: {}", title);
+                    } catch (Exception e) {
+                        logger.warn("Failed to parse response body as JSON: {}", e.getMessage());
+                    }
+                }
+
+                // Determine success based on status code and title
+                boolean success = statusCode == 200 || statusCode == 204;
+
+                // Special handling for 404 with Data not found - treat as success
+                if (statusCode == 404 && "Data not found".equals(title)) {
+                    logger.info("NEF subscription not found (404 Data not found), treating as successful deletion");
+                    success = true;
+                    result.put("subscriptionNotFound", true);
+                }
+
+                // Special handling for 500 with CANCEL_FAILED - treat as failure with specific
+                // error
+                if (statusCode == 500 && "CANCEL_FAILED".equals(title)) {
+                    logger.error("NEF deletion failed (500 CANCEL_FAILED), core network cannot delete subscription");
+                    success = false;
+                    result.put("cancelFailed", true);
+                }
+
+                result.put("success", success);
+
+                logger.info("NEF delete request completed, status: {}, response: {}, success: {}", statusCode,
+                        responseBody,
+                        success);
             }
 
         } catch (IOException e) {
