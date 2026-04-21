@@ -63,6 +63,9 @@ public class SignalingDetails {
     @Column(name = "upf")
     private String upf;
 
+    @Column(name = "route_prof_id")
+    private String routeProfId;
+
     @Column(name = "request_payload", columnDefinition = "TEXT")
     private String requestPayload;
 
@@ -86,7 +89,7 @@ public class SignalingDetails {
     }
 
     public SignalingDetails(String appInstanceId, String targetIp, String targetDnai, String ueType, String ueIp,
-            String dnn, String sst, String sd, String networkSegment, String upf) {
+            String dnn, String sst, String sd, String networkSegment, String upf, String routeProfId) {
         this.appInstanceId = appInstanceId;
         this.targetIp = targetIp;
         this.targetDnai = targetDnai;
@@ -97,6 +100,7 @@ public class SignalingDetails {
         this.sd = sd;
         this.networkSegment = networkSegment;
         this.upf = upf;
+        this.routeProfId = routeProfId;
         this.status = "PENDING"; // 默认状态
         this.createTime = new Timestamp(System.currentTimeMillis());
         this.updateTime = new Timestamp(System.currentTimeMillis());
@@ -109,6 +113,14 @@ public class SignalingDetails {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getRouteProfId() {
+        return routeProfId;
+    }
+
+    public void setRouteProfId(String routeProfId) {
+        this.routeProfId = routeProfId;
     }
 
     public String getTransactionId() {

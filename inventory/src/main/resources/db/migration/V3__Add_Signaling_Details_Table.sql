@@ -21,6 +21,7 @@ ALTER TABLE signaling_details ADD COLUMN IF NOT EXISTS sst VARCHAR(10);
 ALTER TABLE signaling_details ADD COLUMN IF NOT EXISTS sd VARCHAR(15);
 ALTER TABLE signaling_details ADD COLUMN IF NOT EXISTS network_segment VARCHAR(45);
 ALTER TABLE signaling_details ADD COLUMN IF NOT EXISTS upf VARCHAR(255);
+ALTER TABLE signaling_details ADD COLUMN IF NOT EXISTS route_prof_id VARCHAR(255);
 
 -- 创建索引以提高查询性能
 CREATE INDEX IF NOT EXISTS idx_signaling_app_instance ON signaling_details(app_instance_id);

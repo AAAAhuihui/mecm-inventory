@@ -1,0 +1,20 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "Launch Current File",
+      "request": "launch",
+      "mainClass": "${file}",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "java",
+      "name": "Launch Inventory Application",
+      "request": "launch",
+      "mainClass": "org.edgegallery.mecm.inventory.InventoryApplication",
+      "projectName": "inventory",
+      "cwd": "${workspaceFolder}/inventory"
+    }
+  ]
+}

@@ -118,6 +118,12 @@ public class SignalingService {
             reqPayload.put("sd", request.getSd());
             reqPayload.put("networkSegment", request.getNetworkSegment());
             reqPayload.put("upf", request.getUpf());
+            if(request.getRouteProfId() == null || request.getRouteProfId().isEmpty()) {
+                logger.info("routeProfId is empty, use default value: mec");
+                reqPayload.put("routeProfId", "mec");
+            }else{
+                reqPayload.put("routeProfId", request.getRouteProfId());
+            }
 
             String requestPayload = objectMapper.writeValueAsString(reqPayload);
 
@@ -151,7 +157,8 @@ public class SignalingService {
                     request.getSst(),
                     request.getSd(),
                     request.getNetworkSegment(),
-                    request.getUpf());
+                    request.getUpf(),
+                    request.getRouteProfId());
             signalingDetails.setId(nextId);
 
             // Set request payload
@@ -231,7 +238,8 @@ public class SignalingService {
                     request.getSst(),
                     request.getSd(),
                     request.getNetworkSegment(),
-                    request.getUpf());
+                    request.getUpf(),
+                    request.getRouteProfId());
 
             failedSignaling.setRequestPayload("ERROR: " + e.getMessage());
             failedSignaling.setStatus("FAILED");
@@ -387,6 +395,7 @@ public class SignalingService {
                 policyMap.put("sd", policy.getSd());
                 policyMap.put("networkSegment", policy.getNetworkSegment());
                 policyMap.put("upf", policy.getUpf());
+                policyMap.put("routeProfId", policy.getRouteProfId());
                 policyMap.put("requestPayload", policy.getRequestPayload());
                 policyMap.put("responseCode", policy.getResponseCode());
                 policyMap.put("responseBody", policy.getResponseBody());

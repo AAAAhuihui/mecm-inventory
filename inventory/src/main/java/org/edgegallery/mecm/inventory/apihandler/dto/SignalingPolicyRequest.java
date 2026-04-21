@@ -45,6 +45,8 @@ public class SignalingPolicyRequest {
 
     private String upf; // UPF
 
+    private String routeProfId; // Route Profile ID
+
     // Constructors
     public SignalingPolicyRequest() {
     }
@@ -128,5 +130,13 @@ public class SignalingPolicyRequest {
 
     public void setUpf(String upf) {
         this.upf = upf;
+    }
+
+    public String getRouteProfId() {
+        return routeProfId;
+    }
+
+    public void setRouteProfId(String routeProfId) {
+        this.routeProfId = routeProfId;
     }
 }
