@@ -30,6 +30,10 @@ public class InventoryExceptionResponse {
     private final String message;
     private final List<String> details;
 
+    // 新增：状态码（前端需要）
+    private Integer code;
+    // 新增：返回数据（如appinstance_id列表）
+    private Object data;
     /**
      * Constructor to create exception response.
      *
@@ -44,6 +48,13 @@ public class InventoryExceptionResponse {
         details = d;
     }
 
+    public InventoryExceptionResponse(Integer code, String msg, Object data) {
+        this.timestamp = LocalDateTime.now(); // 自动填充当前时间
+        this.message = msg;
+        this.details = null; // 非异常场景，details为null
+        this.code = code;
+        this.data = data;
+    }
     /**
      * Returns message.
      *
@@ -69,5 +80,13 @@ public class InventoryExceptionResponse {
      */
     public LocalDateTime getTimestamp() {
         return timestamp;
+    }
+    // ========== 新增getter方法（前端需要） ==========
+    public Integer getCode() {
+        return code;
+    }
+
+    public Object getData() {
+        return data;
     }
 }
