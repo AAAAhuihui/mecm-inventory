@@ -22,6 +22,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -608,5 +609,61 @@ public class MecHostInventoryHandlerTest {
                 .andReturn();
         String deleteByIdResponseMepm = deleteByIdMvcResultMepm.getResponse().getContentAsString();
         Assert.assertEquals("{\"response\":\"Deleted\"}", deleteByIdResponseMepm);
+    }
+
+    @Test
+    @WithMockUser(roles = {"MECM_TENANT", "MECM_ADMIN", "MECM_GUEST"})
+    public void validateInternalAppPortsUpdate() throws Exception {
+        String tenantId = "18db0283-3c67-4042-a708-a8e4a10c6b32";
+        String hostIp = "1.1.1.1";
+        String appId = "4c6fb452-640d-4e73-9016-6ccec856080d";
+
+        // Add mepm record post
+        mvc.perform(MockMvcRequestBuilders.post("/inventory/v1/mepms")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON).with(csrf())
+                .content("{\"mepmName\": \"mepm123\", \"mepmIp\": \"1.1.1.1\", \"mepmPort\": "
+                        + "\"10000\", "
+                        + "\"userName\": \"Test\" }"))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+
+        // Prepare the mock REST server for mechost create
+        String urlmepmPost = "http://" + "1.1.1.1" + ":" + "10000" + APPLCM_URI + "/tenants/" + tenantId + "/hosts";
+        MockRestServiceServer mockServerHostPost = MockRestServiceServer.createServer(restTemplate);
+        mockServerHostPost.expect(requestTo(urlmepmPost))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess());
+
+        // create host
+        mvc.perform(MockMvcRequestBuilders.post("/inventory/v1/tenants/" + tenantId + "/mechosts")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON).with(csrf())
+                .content("{ \"mechostIp\": \"1.1.1.1\", \"mechostName\":\"TestHost1\",\"city\":\"TestCity\","
+                        + "\"address\":\"Test Address\", \"mepmIp\": \"1.1.1.1\", \"coordinates\":\"1,1\"}")
+                .header("access_token", "SampleToken"))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+
+        // create app
+        mvc.perform(MockMvcRequestBuilders.post("/inventory/v1/tenants/" + tenantId
+                        + "/mechosts/" + hostIp + "/apps")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON).with(csrf())
+                .content("{\"appInstanceId\":\"" + appId + "\",\"appName\":\"app-name\","
+                        + "\"packageId\":\"ea339be5f1044dcf9f76b05db46f0a56\","
+                        + "\"capabilities\":[\"GPU1\"],\"status\":\"Created\"}"))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+
+        String appPortsJson = "{\"containerPorts\":[{\"container\":\"c1\",\"port\":4040,\"protocol\":\"TCP\"}],"
+                + "\"servicePorts\":[{\"service\":\"svc1\",\"type\":\"ClusterIP\",\"port\":80,\"targetPort\":4040,"
+                + "\"nodePort\":0,\"protocol\":\"TCP\",\"name\":\"http\"}]}";
+
+        // internal update
+        mvc.perform(MockMvcRequestBuilders.put("/inventory/v1/internal/tenants/" + tenantId + "/apps/" + appId + "/app_ports")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON).with(csrf())
+                .content("{\"appPorts\":" + new ObjectMapper().writeValueAsString(appPortsJson)
+                        + ",\"source\":\"appo\"}"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().string("{\"response\":\"Updated\"}"));
     }
 }

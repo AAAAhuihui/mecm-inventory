@@ -16,6 +16,7 @@
 
 package org.edgegallery.mecm.inventory.model;
 
+import com.vladmihalcea.hibernate.type.json.JsonBinaryType;
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.FetchType;
@@ -23,6 +24,8 @@ import javax.persistence.Id;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 import javax.persistence.Table;
+import org.hibernate.annotations.Type;
+import org.hibernate.annotations.TypeDef;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -36,6 +39,7 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
+@TypeDef(name = "jsonb", typeClass = JsonBinaryType.class)
 @Table(name = "mecapplicationinventory")
 public final class MecApplication implements BaseModel {
 
@@ -60,6 +64,10 @@ public final class MecApplication implements BaseModel {
 
     @Column(name = "app_ip")
     private String appIp;
+
+    @Type(type = "jsonb")
+    @Column(name = "app_ports", columnDefinition = "jsonb")
+    private String appPorts;
 
     @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "mechost_id", nullable = false)

@@ -89,6 +89,9 @@
         alter table if exists mecapplicationinventory
           add column if not exists app_ip varchar(64);
 
+        alter table if exists mecapplicationinventory
+          add column if not exists app_ports jsonb;
+
     create table if not exists tenantinventory (
         tenant_id  varchar(255) not null,
         mepm_count int,

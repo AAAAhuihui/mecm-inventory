@@ -38,6 +38,7 @@ import javax.validation.constraints.Size;
 import org.apache.servicecomb.provider.rest.common.RestSchema;
 import org.edgegallery.mecm.inventory.apihandler.dto.MecApplicationDto;
 import org.edgegallery.mecm.inventory.apihandler.dto.AppInstanceIpUpdateDto;
+import org.edgegallery.mecm.inventory.apihandler.dto.AppInstancePortsUpdateDto;
 import org.edgegallery.mecm.inventory.apihandler.dto.MecHostDto;
 import org.edgegallery.mecm.inventory.apihandler.dto.MecHwCapabilityDto;
 import org.edgegallery.mecm.inventory.model.MecApplication;
@@ -533,6 +534,41 @@ public class MecHostInventoryHandler {
 
         LOGGER.info("[AppIPSync-Inventory] update success tenantId={} appId={} appIp={}",
             tenantId, appId, request.getAppIp());
+        return new ResponseEntity<>(status, HttpStatus.OK);
+        }
+
+        /**
+         * Internal endpoint to update app ports using appinstance_id.
+         *
+         * @param tenantId tenant id
+         * @param appId app instance id
+         * @param request app ports request
+         * @return status
+         */
+        @ApiOperation(value = "Internal app ports update API", response = String.class)
+        @PutMapping(path = "/internal/tenants/{tenant_id}/apps/{app_id}/app_ports", produces =
+            MediaType.APPLICATION_JSON_VALUE)
+        public ResponseEntity<Status> updateApplicationPortsInternal(
+            @PathVariable(TENANT_ID) @Pattern(regexp = Constants.TENANT_ID_REGEX)
+            @Size(max = 64) String tenantId,
+            @PathVariable("app_id") @Pattern(regexp = Constants.APPLICATION_ID_REGEX)
+            @Size(max = 64) String appId,
+            @Valid @RequestBody AppInstancePortsUpdateDto request) {
+
+        LOGGER.info("[AppPortsSync-Inventory] receive update tenantId={} appId={} source={} appPorts={}",
+            tenantId, appId, request.getSource(), request.getAppPorts());
+
+        MecApplication appDb = service.getRecord(appId, appRepository);
+        if (!tenantId.equals(appDb.getTenantId())) {
+            LOGGER.error("[AppPortsSync-Inventory] tenant mismatch in internal update tenantId={} appId={}",
+                tenantId, appId);
+            throw new IllegalArgumentException("tenant id mismatch");
+        }
+
+        appDb.setAppPorts(request.getAppPorts());
+        Status status = service.updateRecord(appDb, appRepository);
+
+        LOGGER.info("[AppPortsSync-Inventory] update success tenantId={} appId={}", tenantId, appId);
         return new ResponseEntity<>(status, HttpStatus.OK);
         }
 
