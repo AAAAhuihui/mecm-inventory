@@ -20,6 +20,7 @@ import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiParam;
 import io.swagger.annotations.ApiOperation;
 import org.apache.servicecomb.provider.rest.common.RestSchema;
+import org.edgegallery.mecm.inventory.apihandler.dto.CoreNetworkConfigRequest;
 import org.edgegallery.mecm.inventory.apihandler.dto.SignalingPolicyRequest;
 import org.edgegallery.mecm.inventory.service.SignalingService;
 import org.edgegallery.mecm.inventory.utils.Constants;
@@ -53,6 +54,39 @@ public class SignalingController {
     private SignalingService signalingService;
 
     /**
+     * 查询核心网配置
+     */
+    @ApiOperation(value = "Gets core network configs", response = String.class)
+    @GetMapping(path = "/signaling/core-network-configs", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<Map<String, Object>> getCoreNetworkConfigs() {
+        Map<String, Object> result = signalingService.getCoreNetworkConfigs();
+        Integer responseCode = (Integer) result.get("code");
+        HttpStatus status = (responseCode != null && responseCode == 200) ? HttpStatus.OK
+                : HttpStatus.INTERNAL_SERVER_ERROR;
+        return new ResponseEntity<>(result, status);
+    }
+
+    /**
+     * 保存核心网配置
+     */
+    @ApiOperation(value = "Saves core network config", response = String.class)
+    @PostMapping(path = "/signaling/core-network-configs", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<Map<String, Object>> saveCoreNetworkConfig(
+            @RequestBody CoreNetworkConfigRequest request) {
+        Map<String, Object> result = signalingService.saveCoreNetworkConfig(request);
+        Integer responseCode = (Integer) result.get("code");
+        HttpStatus status;
+        if (responseCode != null && responseCode == 200) {
+            status = HttpStatus.OK;
+        } else if (responseCode != null && responseCode == 400) {
+            status = HttpStatus.BAD_REQUEST;
+        } else {
+            status = HttpStatus.INTERNAL_SERVER_ERROR;
+        }
+        return new ResponseEntity<>(result, status);
+    }
+
+    /**
      * 创建信令策略
      */
     @ApiOperation(value = "Creates signaling policy", response = String.class)
@@ -78,10 +112,12 @@ public class SignalingController {
     @GetMapping(path = "/signaling/show", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Map<String, Object>> getAllSignalingPolicies(
             @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "9") Integer size) {
+            @RequestParam(defaultValue = "9") Integer size,
+            @RequestParam(required = false) String coreNetworkType) {
 
-        logger.info("Retrieving all signaling policies with pagination, page: {}, size: {}", page, size);
-        Map<String, Object> result = signalingService.getAllSignalingPolicies(page, size);
+        logger.info("Retrieving all signaling policies with pagination, page: {}, size: {}, coreNetworkType: {}",
+                page, size, coreNetworkType);
+        Map<String, Object> result = signalingService.getAllSignalingPolicies(page, size, coreNetworkType);
 
         // Since the service now returns code in the response body, we can check it
         Integer responseCode = (Integer) result.get("code");

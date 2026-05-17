@@ -17,9 +17,13 @@
 package org.edgegallery.mecm.inventory.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.edgegallery.mecm.inventory.apihandler.dto.CoreNetworkConfigRequest;
+import org.edgegallery.mecm.inventory.config.NefConfig;
+import org.edgegallery.mecm.inventory.model.CoreNetworkConfig;
 import org.edgegallery.mecm.inventory.model.MecApplication;
 import org.edgegallery.mecm.inventory.model.SignalingDetails;
 import org.edgegallery.mecm.inventory.apihandler.dto.SignalingPolicyRequest;
+import org.edgegallery.mecm.inventory.service.repository.CoreNetworkConfigRepository;
 import org.edgegallery.mecm.inventory.service.repository.SignalingDetailsRepository;
 import org.edgegallery.mecm.inventory.service.repository.MecApplicationRepository;
 import org.slf4j.Logger;
@@ -28,6 +32,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -41,6 +47,11 @@ import java.util.Set;
 @Service
 @Transactional
 public class SignalingService {
+
+    private static final String DEFAULT_CORE_NETWORK = "default";
+    private static final String QIANTONG_CORE_NETWORK = "qiantong";
+    private static final String FALLBACK_NEF_IP = "192.168.254.154";
+    private static final int FALLBACK_NEF_PORT = 8000;
 
     private Map<String, Object> createDataMap(String key, Object value) {
         Map<String, Object> dataMap = new HashMap<>();
@@ -60,7 +71,139 @@ public class SignalingService {
     private MecApplicationRepository mecApplicationRepository;
 
     @Autowired
+    private CoreNetworkConfigRepository coreNetworkConfigRepository;
+
+    @Autowired
+    private NefConfig nefConfig;
+
+    @Autowired
     private ObjectMapper objectMapper;
+
+    public Map<String, Object> getCoreNetworkConfigs() {
+        try {
+            List<CoreNetworkConfig> savedConfigs = new ArrayList<>();
+            try {
+                savedConfigs = coreNetworkConfigRepository.findAll();
+            } catch (RuntimeException e) {
+                logger.warn("Failed to query core network config table, using default configs: {}", e.getMessage());
+            }
+            List<CoreNetworkConfig> configs = mergeCoreNetworkDefaults(savedConfigs);
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("code", 200);
+            result.put("data", configs);
+            result.put("msg", "查询成功");
+            return result;
+        } catch (Exception e) {
+            logger.error("Failed to get core network configs: ", e);
+            Map<String, Object> result = new HashMap<>();
+            result.put("code", 200);
+            result.put("data", Arrays.asList(
+                    createDefaultCoreNetworkConfig(DEFAULT_CORE_NETWORK),
+                    createDefaultCoreNetworkConfig(QIANTONG_CORE_NETWORK)));
+            result.put("msg", "查询成功");
+            return result;
+        }
+    }
+
+    public Map<String, Object> saveCoreNetworkConfig(CoreNetworkConfigRequest request) {
+        Map<String, Object> result = new HashMap<>();
+        if (request == null || request.getCoreNetworkType() == null || request.getCoreNetworkType().isEmpty()
+                || request.getNefIp() == null || request.getNefIp().isEmpty()
+                || request.getNefPort() == null) {
+            result.put("code", 400);
+            result.put("data", new HashMap<>());
+            result.put("msg", "核心网类型、IP和端口不能为空");
+            return result;
+        }
+        if (request.getNefPort() < 1 || request.getNefPort() > 65535) {
+            result.put("code", 400);
+            result.put("data", new HashMap<>());
+            result.put("msg", "端口范围必须为1-65535");
+            return result;
+        }
+
+        try {
+            CoreNetworkConfig defaultConfig = createDefaultCoreNetworkConfig(request.getCoreNetworkType());
+            CoreNetworkConfig config = coreNetworkConfigRepository.findById(request.getCoreNetworkType())
+                    .orElse(defaultConfig);
+            config.setCoreNetworkName(defaultConfig.getCoreNetworkName());
+            config.setNefIp(request.getNefIp());
+            config.setNefPort(request.getNefPort());
+            if (config.getCreateTime() == null) {
+                config.setCreateTime(new Timestamp(System.currentTimeMillis()));
+            }
+            config.setUpdateTime(new Timestamp(System.currentTimeMillis()));
+
+            CoreNetworkConfig savedConfig = coreNetworkConfigRepository.save(config);
+
+            result.put("code", 200);
+            result.put("data", savedConfig);
+            result.put("msg", "保存成功");
+            return result;
+        } catch (Exception e) {
+            logger.error("Failed to save core network config: ", e);
+            result.put("code", 500);
+            result.put("data", new HashMap<>());
+            result.put("msg", "保存失败：" + e.getMessage());
+            return result;
+        }
+    }
+
+    private List<CoreNetworkConfig> mergeCoreNetworkDefaults(List<CoreNetworkConfig> savedConfigs) {
+        Map<String, CoreNetworkConfig> configMap = new HashMap<>();
+        if (savedConfigs != null) {
+            for (CoreNetworkConfig config : savedConfigs) {
+                if (config != null && config.getCoreNetworkType() != null) {
+                    configMap.put(config.getCoreNetworkType(), config);
+                }
+            }
+        }
+
+        List<CoreNetworkConfig> configs = new ArrayList<>();
+        configs.add(configMap.containsKey(DEFAULT_CORE_NETWORK) ? configMap.get(DEFAULT_CORE_NETWORK)
+                : createDefaultCoreNetworkConfig(DEFAULT_CORE_NETWORK));
+        configs.add(configMap.containsKey(QIANTONG_CORE_NETWORK) ? configMap.get(QIANTONG_CORE_NETWORK)
+                : createDefaultCoreNetworkConfig(QIANTONG_CORE_NETWORK));
+        return configs;
+    }
+
+    private CoreNetworkConfig createDefaultCoreNetworkConfig(String coreNetworkType) {
+        String normalizedType = normalizeCoreNetworkType(coreNetworkType);
+        String name = QIANTONG_CORE_NETWORK.equals(normalizedType) ? "商业核心网-千通" : "默认核心网";
+        EndpointParts endpointParts = parseNefEndpoint();
+        return new CoreNetworkConfig(normalizedType, name, endpointParts.host, endpointParts.port);
+    }
+
+    private String normalizeCoreNetworkType(String coreNetworkType) {
+        return QIANTONG_CORE_NETWORK.equals(coreNetworkType) ? QIANTONG_CORE_NETWORK : DEFAULT_CORE_NETWORK;
+    }
+
+    private EndpointParts parseNefEndpoint() {
+        try {
+            String endpoint = nefConfig.getNefEndpoint();
+            if (endpoint == null || endpoint.isEmpty()) {
+                return new EndpointParts(FALLBACK_NEF_IP, FALLBACK_NEF_PORT);
+            }
+            URI uri = new URI(endpoint);
+            String host = uri.getHost() != null ? uri.getHost() : FALLBACK_NEF_IP;
+            int port = uri.getPort() > 0 ? uri.getPort() : FALLBACK_NEF_PORT;
+            return new EndpointParts(host, port);
+        } catch (URISyntaxException | RuntimeException e) {
+            logger.warn("Failed to parse nef.endpoint, using fallback NEF address: {}", e.getMessage());
+            return new EndpointParts(FALLBACK_NEF_IP, FALLBACK_NEF_PORT);
+        }
+    }
+
+    private static final class EndpointParts {
+        private final String host;
+        private final int port;
+
+        private EndpointParts(String host, int port) {
+            this.host = host;
+            this.port = port;
+        }
+    }
 
     public Map<String, Object> createSignalingPolicy(SignalingPolicyRequest request) {
         // Parameter validation
@@ -97,9 +240,16 @@ public class SignalingService {
         logger.info("DNN: {}", request.getDnn());
         logger.info("SST: {}", request.getSst());
         logger.info("SD: {}", request.getSd());
+        logger.info("Core Network Type: {}", request.getCoreNetworkType());
         logger.info("======================================================");
 
         try {
+            String coreNetworkType = request.getCoreNetworkType() != null && !request.getCoreNetworkType().isEmpty()
+                    ? normalizeCoreNetworkType(request.getCoreNetworkType())
+                    : DEFAULT_CORE_NETWORK;
+            String ueType = QIANTONG_CORE_NETWORK.equals(coreNetworkType) ? "all"
+                    : (request.getUeType() != null ? request.getUeType() : "all");
+
             // 1. Create request payload (including API version, AF ID, etc.)
             Map<String, Object> reqPayload = new HashMap<>();
             reqPayload.put("api_version", "1.0.0");
@@ -111,13 +261,20 @@ public class SignalingService {
             reqPayload.put("appId", request.getAppId());
             reqPayload.put("dnai", request.getDnai());
             reqPayload.put("targetIp", request.getTargetIp());
-            reqPayload.put("ueType", request.getUeType() != null ? request.getUeType() : "all");
-            reqPayload.put("ueIp", request.getUeIp());
+            reqPayload.put("ueType", ueType);
+            reqPayload.put("ueIp", "all".equals(ueType) ? "" : request.getUeIp());
             reqPayload.put("dnn", request.getDnn());
             reqPayload.put("sst", request.getSst());
             reqPayload.put("sd", request.getSd());
             reqPayload.put("networkSegment", request.getNetworkSegment());
             reqPayload.put("upf", request.getUpf());
+            reqPayload.put("coreNetworkType", coreNetworkType);
+            if (request.getRouteProfId() == null || request.getRouteProfId().isEmpty()) {
+                logger.info("routeProfId is empty, use default value: mec");
+                reqPayload.put("routeProfId", "mec");
+            } else {
+                reqPayload.put("routeProfId", request.getRouteProfId());
+            }
 
             String requestPayload = objectMapper.writeValueAsString(reqPayload);
 
@@ -145,20 +302,43 @@ public class SignalingService {
                     request.getAppId(),
                     request.getTargetIp(),
                     request.getDnai(),
-                    request.getUeType(),
-                    request.getUeIp(),
+                    ueType,
+                    "all".equals(ueType) ? "" : request.getUeIp(),
                     request.getDnn(),
                     request.getSst(),
                     request.getSd(),
                     request.getNetworkSegment(),
-                    request.getUpf());
+                    request.getUpf(),
+                    request.getRouteProfId());
             signalingDetails.setId(nextId);
+            signalingDetails.setCoreNetworkType(coreNetworkType);
 
             // Set request payload
             signalingDetails.setRequestPayload(requestPayload);
 
             // Save to database (initial status is PENDING, updated later)
             signalingDetails = signalingDetailsRepository.save(signalingDetails);
+
+            if ("single".equals(ueType)) {
+                Map<String, Object> pfdResult = nefClient.sendPfdRequest(signalingDetails);
+                if (!Boolean.TRUE.equals(pfdResult.get("success"))) {
+                    signalingDetails.setStatus("FAILED");
+                    signalingDetails.setResponseCode((Integer) pfdResult.get("statusCode"));
+                    signalingDetails.setResponseBody((String) pfdResult.get("responseBody"));
+                    signalingDetails.setTransactionId("pfd-fail-" + signalingDetails.getAppInstanceId() +
+                            "-" + signalingDetails.getTargetDnai());
+                    signalingDetails.setUpdateTime(new Timestamp(System.currentTimeMillis()));
+                    signalingDetailsRepository.save(signalingDetails);
+
+                    Map<String, Object> result = new HashMap<>();
+                    result.put("code", 500);
+                    result.put("data", new HashMap<>());
+                    result.put("msg", "PFD failed - Traffic influence skipped");
+                    return result;
+                }
+                signalingDetails.setPfdTransactionId((String) pfdResult.get("transactionId"));
+                signalingDetailsRepository.save(signalingDetails);
+            }
 
             // 3. Call NEF to create traffic influence subscription
             Map<String, Object> nefResult = nefClient.sendTrafficInfluenceRequest(signalingDetails);
@@ -173,6 +353,25 @@ public class SignalingService {
                 signalingDetails.setResponseBody((String) nefResult.get("responseBody"));
                 signalingDetails.setTransactionId((String) nefResult.get("transactionId"));
             } else {
+                if ("single".equals(ueType) && signalingDetails.getPfdTransactionId() != null
+                        && !signalingDetails.getPfdTransactionId().isEmpty()) {
+                    logger.warn("Traffic influence request failed, rolling back PFD transaction: {}",
+                            signalingDetails.getPfdTransactionId());
+                    Map<String, Object> pfdRollbackResult =
+                            nefClient.deletePfdRequest(signalingDetails.getPfdTransactionId(),
+                                    signalingDetails.getCoreNetworkType());
+                    boolean isPfdRollbackSuccess = Boolean.TRUE.equals(pfdRollbackResult.get("success"));
+                    if (isPfdRollbackSuccess) {
+                        logger.info("PFD rollback successful, transactionId: {}",
+                                signalingDetails.getPfdTransactionId());
+                        signalingDetails.setPfdTransactionId(null);
+                    } else {
+                        logger.error("PFD rollback failed, transactionId: {}, status: {}, response: {}",
+                                signalingDetails.getPfdTransactionId(),
+                                pfdRollbackResult.get("statusCode"),
+                                pfdRollbackResult.get("responseBody"));
+                    }
+                }
                 signalingDetails.setStatus("FAILED");
                 signalingDetails.setResponseCode((Integer) nefResult.get("statusCode"));
                 signalingDetails.setResponseBody((String) nefResult.get("responseBody"));
@@ -225,13 +424,16 @@ public class SignalingService {
                     request.getAppId(),
                     request.getTargetIp(),
                     request.getDnai(),
-                    request.getUeType(),
-                    request.getUeIp(),
+                    QIANTONG_CORE_NETWORK.equals(request.getCoreNetworkType()) ? "all" : request.getUeType(),
+                    QIANTONG_CORE_NETWORK.equals(request.getCoreNetworkType()) ? "" : request.getUeIp(),
                     request.getDnn(),
                     request.getSst(),
                     request.getSd(),
                     request.getNetworkSegment(),
-                    request.getUpf());
+                    request.getUpf(),
+                    request.getRouteProfId());
+            failedSignaling.setCoreNetworkType(request.getCoreNetworkType() != null
+                    ? normalizeCoreNetworkType(request.getCoreNetworkType()) : DEFAULT_CORE_NETWORK);
 
             failedSignaling.setRequestPayload("ERROR: " + e.getMessage());
             failedSignaling.setStatus("FAILED");
@@ -284,26 +486,40 @@ public class SignalingService {
             logger.info("🔍 Starting to cancel NEF subscription, TransactionId: {}",
                     signalingDetails.getTransactionId());
             Map<String, Object> deleteResult = nefClient
-                    .deleteTrafficInfluenceRequest(signalingDetails.getTransactionId());
+                    .deleteTrafficInfluenceRequest(signalingDetails.getTransactionId(),
+                            signalingDetails.getCoreNetworkType());
             boolean isNefSuccess = (Boolean) deleteResult.get("success");
+            boolean isSubscriptionNotFound = Boolean.TRUE.equals(deleteResult.get("subscriptionNotFound"));
+            boolean isCancelFailed = Boolean.TRUE.equals(deleteResult.get("cancelFailed"));
             logger.info(isNefSuccess ? "✅ NEF subscription cancellation successful, ID={}"
                     : "❌ NEF subscription cancellation failed, ID={}", policyId);
 
-            // 4. Execute database deletion only if NEF cancellation is successful
+            // 4. Execute database deletion based on NEF result
             boolean isDbSuccess = false;
-            if (isNefSuccess) {
+            // Check if NEF returned 404 status code
+            Integer statusCode = (Integer) deleteResult.get("statusCode");
+            boolean is404Error = statusCode != null && statusCode == 404;
+            boolean canDeletePfd = isNefSuccess || isSubscriptionNotFound || is404Error;
+            boolean isPfdSuccess = false;
+            if (canDeletePfd) {
+                Map<String, Object> pfdDeleteResult = nefClient.deletePfdRequest(signalingDetails.getPfdTransactionId(),
+                        signalingDetails.getCoreNetworkType());
+                isPfdSuccess = Boolean.TRUE.equals(pfdDeleteResult.get("success"));
+            } else {
+                logger.info("Skipping PFD deletion because traffic influence cancellation failed, ID: {}", policyId);
+            }
+
+            if (canDeletePfd && isPfdSuccess) {
                 try {
                     signalingDetailsRepository.deleteById(policyId);
                     logger.info("✅ Database record deletion successful, ID: {}", policyId);
                     isDbSuccess = true;
                 } catch (Exception e) {
                     logger.error("❌ Database record deletion failed, ID: {}, Error: {}", policyId, e.getMessage());
-                    Map<String, Object> errorResult = new HashMap<>();
-                    errorResult.put("code", 500);
-                    errorResult.put("data", new HashMap<>());
-                    errorResult.put("msg", "Database deletion failed: " + e.getMessage());
-                    return errorResult;
+                    isDbSuccess = false;
                 }
+            } else if (isCancelFailed) {
+                logger.info("⚠️ NEF deletion failed (CANCEL_FAILED), skipping database deletion, ID: {}", policyId);
             } else {
                 logger.info("⚠️ NEF cancellation failed, skipping database deletion, ID: {}", policyId);
             }
@@ -314,20 +530,39 @@ public class SignalingService {
             if (isNefSuccess && isDbSuccess) {
                 finalMsg = "NEF cancellation successful - Database deletion successful";
                 resCode = 200;
+            } else if ((isNefSuccess || isSubscriptionNotFound || is404Error) && !isPfdSuccess) {
+                finalMsg = "PFD deletion failed - Database deletion skipped";
+                resCode = 502;
             } else if (isNefSuccess && !isDbSuccess) {
                 finalMsg = "NEF cancellation successful - Database deletion failed";
                 resCode = 500;
-            } else if (!isNefSuccess && isDbSuccess) {
-                finalMsg = "NEF cancellation failed - Database deletion successful";
-                resCode = 502; // Bad Gateway
+            } else if (isSubscriptionNotFound && isDbSuccess) {
+                finalMsg = "NEF subscription not found - Database deletion successful";
+                resCode = 200;
+            } else if (isSubscriptionNotFound && !isDbSuccess) {
+                finalMsg = "NEF subscription not found - Database deletion failed";
+                resCode = 500;
+            } else if (is404Error && isDbSuccess) {
+                finalMsg = "NEF returned 404 - Database deletion successful";
+                resCode = 200;
+            } else if (is404Error && !isDbSuccess) {
+                finalMsg = "NEF returned 404 - Database deletion failed";
+                resCode = 500;
+            } else if (isCancelFailed) {
+                finalMsg = "NEF deletion failed (CANCEL_FAILED) - Please contact administrator";
+                resCode = 502;
+            } else if (canDeletePfd && !isPfdSuccess) {
+                finalMsg = "PFD deletion failed - Database deletion skipped";
+                resCode = 502;
             } else {
                 finalMsg = "NEF cancellation failed - Database deletion skipped";
-                resCode = 502; // Bad Gateway
+                resCode = 502;
             }
 
             logger.info("==================== Cancel signaling result ====================");
             logger.info("Signaling ID: {}", policyId);
             logger.info("NEF status: {}", isNefSuccess);
+            logger.info("PFD status: {}", isPfdSuccess);
             logger.info("Database status: {}", isDbSuccess);
             logger.info("Final result: {}", finalMsg);
             logger.info("======================================================");
@@ -335,7 +570,7 @@ public class SignalingService {
             // Prepare response according to frontend expectation
             Map<String, Object> result = new HashMap<>();
             result.put("code", resCode);
-            if (isNefSuccess) {
+            if ((isNefSuccess || isSubscriptionNotFound || is404Error) && isPfdSuccess && isDbSuccess) {
                 result.put("data", createDataMap("id", policyId));
             } else {
                 result.put("data", new HashMap<>()); // Empty data on error
@@ -353,10 +588,10 @@ public class SignalingService {
         }
     }
 
-    public Map<String, Object> getAllSignalingPolicies(Integer page, Integer size) {
+    public Map<String, Object> getAllSignalingPolicies(Integer page, Integer size, String coreNetworkType) {
         try {
-            // 计算总数
-            List<SignalingDetails> allPolicies = signalingDetailsRepository.findAll();
+            List<SignalingDetails> allPolicies = filterPoliciesByCoreNetwork(
+                    signalingDetailsRepository.findAll(), coreNetworkType);
             int total = allPolicies.size();
 
             // 计算分页
@@ -387,6 +622,8 @@ public class SignalingService {
                 policyMap.put("sd", policy.getSd());
                 policyMap.put("networkSegment", policy.getNetworkSegment());
                 policyMap.put("upf", policy.getUpf());
+                policyMap.put("routeProfId", policy.getRouteProfId());
+                policyMap.put("coreNetworkType", policy.getCoreNetworkType());
                 policyMap.put("requestPayload", policy.getRequestPayload());
                 policyMap.put("responseCode", policy.getResponseCode());
                 policyMap.put("responseBody", policy.getResponseBody());
@@ -426,6 +663,20 @@ public class SignalingService {
             errorResult.put("msg", "查询失败：" + e.getMessage());
             return errorResult;
         }
+    }
+
+    private List<SignalingDetails> filterPoliciesByCoreNetwork(List<SignalingDetails> policies, String coreNetworkType) {
+        String targetCoreNetworkType = coreNetworkType != null && !coreNetworkType.isEmpty()
+                ? normalizeCoreNetworkType(coreNetworkType) : DEFAULT_CORE_NETWORK;
+        List<SignalingDetails> filteredPolicies = new ArrayList<>();
+        for (SignalingDetails policy : policies) {
+            String policyCoreNetworkType = policy.getCoreNetworkType() != null && !policy.getCoreNetworkType().isEmpty()
+                    ? normalizeCoreNetworkType(policy.getCoreNetworkType()) : DEFAULT_CORE_NETWORK;
+            if (targetCoreNetworkType.equals(policyCoreNetworkType)) {
+                filteredPolicies.add(policy);
+            }
+        }
+        return filteredPolicies;
     }
 
     public Map<String, Object> getSignalingProgressByTenant(String tenantId, String appInstanceIds) {
@@ -543,22 +794,34 @@ public class SignalingService {
                 String transactionId = signaling.getTransactionId();
                 if ("FAILED".equals(signaling.getStatus()) || transactionId == null || transactionId.trim().isEmpty()
                         || transactionId.startsWith("nef-")) {
+                    nefClient.deletePfdRequest(signaling.getPfdTransactionId(), signaling.getCoreNetworkType());
                     signalingDetailsRepository.deleteById(signaling.getId());
                     continue;
                 }
 
-                Map<String, Object> deleteResult = nefClient.deleteTrafficInfluenceRequest(transactionId);
+                Map<String, Object> deleteResult = nefClient.deleteTrafficInfluenceRequest(transactionId,
+                        signaling.getCoreNetworkType());
                 boolean nefSuccess = Boolean.TRUE.equals(deleteResult.get("success"));
-                if (!nefSuccess) {
-                    Object statusCodeObj = deleteResult.get("statusCode");
-                    Integer statusCode = null;
-                    if (statusCodeObj instanceof Number) {
-                        statusCode = ((Number) statusCodeObj).intValue();
-                    }
+                Map<String, Object> pfdDeleteResult = nefClient.deletePfdRequest(signaling.getPfdTransactionId(),
+                        signaling.getCoreNetworkType());
+                boolean pfdSuccess = Boolean.TRUE.equals(pfdDeleteResult.get("success"));
+                // Check if NEF returned 404 status code
+                Object statusCodeObj = deleteResult.get("statusCode");
+                Integer statusCode = null;
+                if (statusCodeObj instanceof Number) {
+                    statusCode = ((Number) statusCodeObj).intValue();
+                }
+                boolean is404Error = statusCode != null && statusCode == 404;
+
+                if ((!nefSuccess && !is404Error) || !pfdSuccess) {
                     Object responseBodyObj = deleteResult.get("responseBody");
                     String responseBody = responseBodyObj == null
                             ? "NEF cancellation failed during task deletion"
                             : String.valueOf(responseBodyObj);
+                    if (!pfdSuccess) {
+                        responseBody = "PFD deletion failed during task deletion: "
+                                + String.valueOf(pfdDeleteResult.get("responseBody"));
+                    }
 
                     signaling.setStatus("CANCEL_FAILED");
                     signaling.setResponseCode(statusCode);
@@ -566,7 +829,8 @@ public class SignalingService {
                     signaling.setUpdateTime(new Timestamp(System.currentTimeMillis()));
                     signalingDetailsRepository.save(signaling);
 
-                    logger.warn("NEF cancellation failed but task deletion will continue, signalingId: {}, statusCode: {}",
+                    logger.warn(
+                            "NEF cancellation failed but task deletion will continue, signalingId: {}, statusCode: {}",
                             signaling.getId(), statusCode);
                     continue;
                 }
@@ -579,7 +843,8 @@ public class SignalingService {
     }
 
     private boolean isNewer(SignalingDetails candidate, SignalingDetails baseline) {
-        Timestamp candidateTime = candidate.getUpdateTime() != null ? candidate.getUpdateTime() : candidate.getCreateTime();
+        Timestamp candidateTime = candidate.getUpdateTime() != null ? candidate.getUpdateTime()
+                : candidate.getCreateTime();
         Timestamp baselineTime = baseline.getUpdateTime() != null ? baseline.getUpdateTime() : baseline.getCreateTime();
         if (candidateTime != null && baselineTime != null) {
             return candidateTime.after(baselineTime);
@@ -643,6 +908,7 @@ public class SignalingService {
             }
 
             // 4. 直接删除数据库记录
+            nefClient.deletePfdRequest(signalingDetails.getPfdTransactionId(), signalingDetails.getCoreNetworkType());
             signalingDetailsRepository.deleteById(policyId);
             logger.info("✅ Failed signaling policy deleted successfully, ID: {}", policyId);
 

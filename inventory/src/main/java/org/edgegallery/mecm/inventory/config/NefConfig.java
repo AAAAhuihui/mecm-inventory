@@ -25,6 +25,9 @@ public class NefConfig {
     @Value("${nef.endpoint:http://192.168.254.154:8000/3gpp-traffic-influence/v1/af001/subscriptions}")
     private String nefEndpoint;
 
+    @Value("${nef.pfdEndpoint:http://127.0.0.16:7777/3gpp-pfd-management/v1/af-demo/transactions}")
+    private String pfdEndpoint;
+
     @Value("${nef.tls_enable:false}")
     private boolean tlsEnable;
 
@@ -37,6 +40,10 @@ public class NefConfig {
     // Getters
     public String getNefEndpoint() {
         return nefEndpoint;
+    }
+
+    public String getPfdEndpoint() {
+        return pfdEndpoint;
     }
 
     public boolean isTlsEnable() {
@@ -54,6 +61,10 @@ public class NefConfig {
     // Setters
     public void setNefEndpoint(String nefEndpoint) {
         this.nefEndpoint = nefEndpoint;
+    }
+
+    public void setPfdEndpoint(String pfdEndpoint) {
+        this.pfdEndpoint = pfdEndpoint;
     }
 
     public void setTlsEnable(boolean tlsEnable) {

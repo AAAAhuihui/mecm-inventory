@@ -16,32 +16,43 @@
 
 package org.edgegallery.mecm.inventory.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.http.HttpHeaders;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.methods.HttpDelete;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.util.EntityUtils;
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
 import org.edgegallery.mecm.inventory.config.NefConfig;
+import org.edgegallery.mecm.inventory.model.CoreNetworkConfig;
 import org.edgegallery.mecm.inventory.model.SignalingDetails;
+import org.edgegallery.mecm.inventory.service.repository.CoreNetworkConfigRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Protocol;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
 
 @Component
 public class NefClient {
 
     private static final Logger logger = LoggerFactory.getLogger(NefClient.class);
+
+    private static final String QIANTONG_CORE_NETWORK = "qiantong";
+
+    private static final int QIANTONG_ROUTE_PORT = 8080;
+
+    private static final MediaType JSON_MEDIA_TYPE = MediaType.parse("application/json; charset=utf-8");
 
     @Autowired
     private NefConfig nefConfig;
@@ -49,58 +60,158 @@ public class NefClient {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private CoreNetworkConfigRepository coreNetworkConfigRepository;
+
+    private volatile OkHttpClient httpClient;
+
+    public Map<String, Object> sendPfdRequest(SignalingDetails signalingDetails) {
+        OkHttpClient client = getHttpClient();
+        Map<String, Object> result = new HashMap<>();
+
+        try {
+            Map<String, Object> requestPayload = buildPfdRequest(signalingDetails);
+
+            RequestBody requestBody = RequestBody.create(JSON_MEDIA_TYPE,
+                    objectMapper.writeValueAsString(requestPayload));
+            String pfdEndpoint = buildEndpoint(nefConfig.getPfdEndpoint(), signalingDetails.getCoreNetworkType());
+            Request request = new Request.Builder()
+                    .url(pfdEndpoint)
+                    .addHeader("Content-Type", "application/json; charset=utf-8")
+                    .addHeader("Accept", "application/json")
+                    .post(requestBody)
+                    .build();
+
+            logger.info("Sending PFD request to NEF: {}", pfdEndpoint);
+            try (Response response = client.newCall(request).execute()) {
+                int statusCode = response.code();
+                String responseBody = response.body() != null ? response.body().string() : "";
+
+                result.put("statusCode", statusCode);
+                result.put("responseBody", responseBody);
+                result.put("success", statusCode == 200 || statusCode == 201 || statusCode == 204);
+
+                String transactionId = extractTransactionId(response.header("Location"));
+                if (transactionId != null && !transactionId.isEmpty()) {
+                    result.put("transactionId", transactionId);
+                }
+
+                logger.info("PFD request completed, status: {}, response: {}", statusCode, responseBody);
+            }
+        } catch (IOException e) {
+            logger.error("Failed to send PFD request to NEF: ", e);
+            result.put("success", false);
+            result.put("error", e.getMessage());
+            result.put("statusCode", 500);
+            result.put("responseBody", e.getMessage());
+        }
+
+        return result;
+    }
+
+    public Map<String, Object> deletePfdRequest(String transactionId) {
+        return deletePfdRequest(transactionId, null);
+    }
+
+    public Map<String, Object> deletePfdRequest(String transactionId, String coreNetworkType) {
+        OkHttpClient client = getHttpClient();
+        Map<String, Object> result = new HashMap<>();
+
+        if (transactionId == null || transactionId.isEmpty() || transactionId.startsWith("pfd-fail")) {
+            logger.info("Skipping invalid PFD transaction deletion, TransactionId: {}", transactionId);
+            result.put("statusCode", 204);
+            result.put("responseBody", "Skipped invalid PFD transaction");
+            result.put("success", true);
+            return result;
+        }
+
+        try {
+            String deleteUrl;
+            if (transactionId.startsWith("http")) {
+                deleteUrl = transactionId;
+            } else {
+                String baseEndpoint = buildEndpoint(nefConfig.getPfdEndpoint(), coreNetworkType);
+                if (!baseEndpoint.endsWith("/")) {
+                    baseEndpoint += "/";
+                }
+                deleteUrl = baseEndpoint + transactionId;
+            }
+
+            Request request = new Request.Builder()
+                    .url(deleteUrl)
+                    .addHeader("Accept", "application/json")
+                    .delete()
+                    .build();
+
+            logger.info("Sending PFD delete request to NEF: {}", deleteUrl);
+            try (Response response = client.newCall(request).execute()) {
+                int statusCode = response.code();
+                String responseBody = statusCode != 204 && response.body() != null ? response.body().string() : "";
+
+                result.put("statusCode", statusCode);
+                result.put("responseBody", responseBody);
+                result.put("success", statusCode == 204 || statusCode == 404);
+                result.put("pfdNotFound", statusCode == 404);
+
+                logger.info("PFD delete request completed, status: {}, response: {}", statusCode, responseBody);
+            }
+        } catch (IOException e) {
+            logger.error("Failed to delete PFD request from NEF: ", e);
+            result.put("success", false);
+            result.put("error", e.getMessage());
+            result.put("statusCode", 500);
+            result.put("responseBody", e.getMessage());
+        }
+
+        return result;
+    }
+
     public Map<String, Object> sendTrafficInfluenceRequest(SignalingDetails signalingDetails) {
-        CloseableHttpClient httpClient = createHttpClient();
+        OkHttpClient client = getHttpClient();
         Map<String, Object> result = new HashMap<>();
 
         try {
             // 构建3GPP流量影响请求
             Map<String, Object> requestPayload = build3gppTrafficInfluenceRequest(signalingDetails);
 
-            HttpPost post = new HttpPost(nefConfig.getNefEndpoint());
-            post.setHeader(HttpHeaders.CONTENT_TYPE, "application/json; charset=utf-8");
-            post.setHeader(HttpHeaders.ACCEPT, "application/json");
+            RequestBody requestBody = RequestBody.create(JSON_MEDIA_TYPE,
+                    objectMapper.writeValueAsString(requestPayload));
+            String trafficInfluenceEndpoint = buildEndpoint(nefConfig.getNefEndpoint(),
+                    signalingDetails.getCoreNetworkType());
+            Request request = new Request.Builder()
+                    .url(trafficInfluenceEndpoint)
+                    .addHeader("Content-Type", "application/json; charset=utf-8")
+                    .addHeader("Accept", "application/json")
+                    .post(requestBody)
+                    .build();
 
-            StringEntity entity = new StringEntity(objectMapper.writeValueAsString(requestPayload), "UTF-8");
-            post.setEntity(entity);
+            logger.info("Sending traffic influence request to NEF: {}", trafficInfluenceEndpoint);
+            try (Response response = client.newCall(request).execute()) {
+                int statusCode = response.code();
+                String responseBody = response.body() != null ? response.body().string() : "";
 
-            logger.info("Sending traffic influence request to NEF: {}", nefConfig.getNefEndpoint());
-            HttpResponse response = httpClient.execute(post);
-            int statusCode = response.getStatusLine().getStatusCode();
-            String responseBody = EntityUtils.toString(response.getEntity());
+                // Get Location from response header (if 201 Created)
+                String transactionId = extractTransactionId(response.header("Location"));
 
-            // Get Location from response header (if 201 Created)
-            String transactionId = response.getFirstHeader("Location") != null
-                    ? response.getFirstHeader("Location").getValue()
-                    : null;
+                result.put("statusCode", statusCode);
+                result.put("responseBody", responseBody);
+                result.put("success", statusCode == 200 || statusCode == 201);
 
-            // Extract only the last number from transactionId
-            if (transactionId != null && !transactionId.isEmpty()) {
-                // Split by '/' and get the last part
-                String[] parts = transactionId.split("/");
-                if (parts.length > 0) {
-                    transactionId = parts[parts.length - 1];
-                }
-            }
-
-            result.put("statusCode", statusCode);
-            result.put("responseBody", responseBody);
-            result.put("success", statusCode == 200 || statusCode == 201);
-
-            if ((Boolean) result.get("success")) {
-                if (transactionId != null && !transactionId.isEmpty()) {
-                    result.put("transactionId", transactionId);
+                if ((Boolean) result.get("success")) {
+                    if (transactionId != null && !transactionId.isEmpty()) {
+                        result.put("transactionId", transactionId);
+                    } else {
+                        // Generate a temporary ID if no Location header in response
+                        result.put("transactionId", "trans_" + System.currentTimeMillis());
+                    }
                 } else {
-                    // Generate a temporary ID if no Location header in response
-                    result.put("transactionId", "trans_" + System.currentTimeMillis());
+                    // Generate an identifier for tracking failed responses
+                    result.put("transactionId", "nef-fail-" + signalingDetails.getAppInstanceId() +
+                            "-" + signalingDetails.getTargetDnai());
                 }
-            } else {
-                // Generate an identifier for tracking failed responses
-                result.put("transactionId", "nef-fail-" + signalingDetails.getAppInstanceId() +
-                        "-" + signalingDetails.getTargetDnai());
-            }
 
-            logger.info("NEF request completed, status: {}, response: {}", statusCode, responseBody);
+                logger.info("NEF request completed, status: {}, response: {}", statusCode, responseBody);
+            }
 
         } catch (IOException e) {
             logger.error("Failed to send request to NEF: ", e);
@@ -108,19 +219,13 @@ public class NefClient {
             result.put("error", e.getMessage());
             result.put("transactionId", "nef-fail-" + signalingDetails.getAppInstanceId() +
                     "-" + signalingDetails.getTargetDnai());
-        } finally {
-            try {
-                httpClient.close();
-            } catch (IOException e) {
-                logger.error("Error closing HTTP client: ", e);
-            }
         }
 
         return result;
     }
 
-    public Map<String, Object> deleteTrafficInfluenceRequest(String transactionId) {
-        CloseableHttpClient httpClient = createHttpClient();
+    public Map<String, Object> deleteTrafficInfluenceRequest(String transactionId, String coreNetworkType) {
+        OkHttpClient client = getHttpClient();
         Map<String, Object> result = new HashMap<>();
 
         // Skip invalid subscriptions (records where NEF creation failed, no need to
@@ -141,7 +246,7 @@ public class NefClient {
                 deleteUrl = transactionId;
             } else {
                 // If transactionId is just a number, append it to the base endpoint
-                String baseEndpoint = nefConfig.getNefEndpoint();
+                String baseEndpoint = buildEndpoint(nefConfig.getNefEndpoint(), coreNetworkType);
                 // Ensure baseEndpoint ends with /
                 if (!baseEndpoint.endsWith("/")) {
                     baseEndpoint += "/";
@@ -150,44 +255,137 @@ public class NefClient {
                 deleteUrl = baseEndpoint + transactionId;
             }
 
-            HttpDelete delete = new HttpDelete(deleteUrl);
-            delete.setHeader(HttpHeaders.ACCEPT, "application/json");
+            Request request = new Request.Builder()
+                    .url(deleteUrl)
+                    .addHeader("Accept", "application/json")
+                    .delete()
+                    .build();
 
             logger.info("Sending delete request to NEF: {}", deleteUrl);
-            HttpResponse response = httpClient.execute(delete);
-            int statusCode = response.getStatusLine().getStatusCode();
-            String responseBody = "";
+            try (Response response = client.newCall(request).execute()) {
+                int statusCode = response.code();
+                String responseBody = "";
 
-            // Handle 204 No Content response
-            if (statusCode != 204) {
-                try {
-                    responseBody = EntityUtils.toString(response.getEntity());
-                } catch (Exception e) {
-                    logger.warn("Failed to read response body: {}", e.getMessage());
+                // Handle 204 No Content response
+                if (statusCode != 204 && response.body() != null) {
+                    try {
+                        responseBody = response.body().string();
+                    } catch (Exception e) {
+                        logger.warn("Failed to read response body: {}", e.getMessage());
+                    }
                 }
+
+                result.put("statusCode", statusCode);
+                result.put("responseBody", responseBody);
+
+                // Parse response body to extract title field for error handling
+                String title = null;
+                if (responseBody != null && !responseBody.isEmpty()) {
+                    try {
+                        Map<String, Object> responseJson = objectMapper.readValue(responseBody, Map.class);
+                        title = (String) responseJson.get("title");
+                        result.put("title", title);
+                        logger.info("Extracted title from response: {}", title);
+                    } catch (Exception e) {
+                        logger.warn("Failed to parse response body as JSON: {}", e.getMessage());
+                    }
+                }
+
+                // Determine success based on status code and title
+                boolean success = statusCode == 200 || statusCode == 204;
+
+                // Special handling for 404 with Data not found - treat as success
+                if (statusCode == 404 && "Data not found".equals(title)) {
+                    logger.info("NEF subscription not found (404 Data not found), treating as successful deletion");
+                    success = true;
+                    result.put("subscriptionNotFound", true);
+                }
+
+                // Special handling for 500 with CANCEL_FAILED - treat as failure with specific
+                // error
+                if (statusCode == 500 && "CANCEL_FAILED".equals(title)) {
+                    logger.error("NEF deletion failed (500 CANCEL_FAILED), core network cannot delete subscription");
+                    success = false;
+                    result.put("cancelFailed", true);
+                }
+
+                result.put("success", success);
+
+                logger.info("NEF delete request completed, status: {}, response: {}, success: {}", statusCode,
+                        responseBody,
+                        success);
             }
-
-            result.put("statusCode", statusCode);
-            result.put("responseBody", responseBody);
-            // 3GPP standard: 200 / 204 both indicate successful deletion
-            result.put("success", statusCode == 200 || statusCode == 204);
-
-            logger.info("NEF delete request completed, status: {}, response: {}", statusCode, responseBody);
 
         } catch (IOException e) {
             logger.error("Failed to delete request from NEF: ", e);
             result.put("success", false);
             result.put("error", e.getMessage());
             result.put("statusCode", 500); // Set status code for error
-        } finally {
-            try {
-                httpClient.close();
-            } catch (IOException e) {
-                logger.error("Error closing HTTP client: ", e);
-            }
         }
 
         return result;
+    }
+
+    private String buildEndpoint(String baseEndpoint, String coreNetworkType) {
+        if (coreNetworkType == null || coreNetworkType.isEmpty()) {
+            return baseEndpoint;
+        }
+
+        try {
+            CoreNetworkConfig config = coreNetworkConfigRepository.findById(coreNetworkType).orElse(null);
+            if (config == null || config.getNefIp() == null || config.getNefIp().isEmpty()
+                    || config.getNefPort() == null) {
+                return baseEndpoint;
+            }
+            URI uri = new URI(baseEndpoint);
+            return new URI(uri.getScheme(), uri.getUserInfo(), config.getNefIp(), config.getNefPort(),
+                    uri.getPath(), uri.getQuery(), uri.getFragment()).toString();
+        } catch (URISyntaxException e) {
+            logger.warn("Failed to build NEF endpoint from core network config, using configured endpoint: {}",
+                    e.getMessage());
+            return baseEndpoint;
+        }
+    }
+
+    private Map<String, Object> buildPfdRequest(SignalingDetails signalingDetails) {
+        Map<String, Object> requestParams = extractRequestParams(signalingDetails);
+
+        String appId = (String) requestParams.get("appId");
+        String targetIp = (String) requestParams.get("targetIp");
+        String ueIp = (String) requestParams.get("ueIp");
+
+        String externalAppId = appId != null ? appId : signalingDetails.getAppInstanceId();
+        String pfdId = signalingDetails.getId() != null ? "pfd_" + signalingDetails.getId() : "pfd_pending";
+        String targetSegment = targetIp != null && targetIp.contains("/") ? targetIp : (targetIp != null ? targetIp + "/24" : "");
+        String flowDescription = String.format("permit out ip from %s to %s",
+                targetSegment,
+                ueIp != null ? ueIp : "");
+
+        Map<String, Object> pfd = new HashMap<>();
+        pfd.put("pfdId", pfdId);
+        pfd.put("flowDescriptions", Arrays.asList(flowDescription));
+
+        Map<String, Object> pfds = new HashMap<>();
+        pfds.put(pfdId, pfd);
+
+        Map<String, Object> pfdData = new HashMap<>();
+        pfdData.put("externalAppId", externalAppId);
+        pfdData.put("pfds", pfds);
+
+        Map<String, Object> pfdDatas = new HashMap<>();
+        pfdDatas.put(externalAppId, pfdData);
+
+        Map<String, Object> request = new HashMap<>();
+        request.put("pfdDatas", pfdDatas);
+        return request;
+    }
+
+    private String extractTransactionId(String location) {
+        if (location == null || location.isEmpty()) {
+            return location;
+        }
+        String[] parts = location.split("/");
+        return parts.length > 0 ? parts[parts.length - 1] : location;
     }
 
     private Map<String, Object> build3gppTrafficInfluenceRequest(SignalingDetails signalingDetails) {
@@ -203,6 +401,7 @@ public class NefClient {
         String sst = (String) requestParams.get("sst");
         String sd = (String) requestParams.get("sd");
         String networkSegment = (String) requestParams.get("networkSegment");
+        String routeProfId = (String) requestParams.get("routeProfId");
 
         // Build SNSSAI
         Map<String, Object> snssai = new HashMap<>();
@@ -213,25 +412,31 @@ public class NefClient {
         }
         snssai.put("sd", sd != null ? sd : "010203"); // Default value
 
+        if (QIANTONG_CORE_NETWORK.equals(signalingDetails.getCoreNetworkType())) {
+            return buildQiantongTrafficInfluenceRequest(dnn, snssai, dnai, targetIp, networkSegment);
+        }
+
         // Build traffic route
         Map<String, Object> trafficRoute = new HashMap<>();
-        trafficRoute.put("dnai", dnai);
+        trafficRoute.put("dnai", dnai != null ? dnai : "mec"); // Default dnai to "mec"
+        trafficRoute.put("routeProfId", "MEC"); // Fixed routeProfId to "MEC"
 
         // Build final request based on UE type
         Map<String, Object> request = new HashMap<>();
-        request.put("afServiceId", nefConfig.getAfServiceId());
-        request.put("dnn", dnn != null ? dnn : "default-dnn"); // Default DNN
+        request.put("dnn", dnn != null ? dnn : "internet"); // Default DNN to "internet"
         request.put("snssai", snssai);
         request.put("notificationDestination", "http://af:8000/test123"); // Fixed notification address
         request.put("trafficRoutes", Arrays.asList(trafficRoute));
 
         if ("single".equals(ueType)) {
             // For single UE, use the format provided by user
+            request.put("afServiceId", nefConfig.getAfServiceId());
+            request.put("afAppId", appId);
             request.put("ipv4Addr", ueIp != null ? ueIp : "");
-            request.put("AfAppId", appId);
             request.put("suppFeat", "01"); // Fixed value
         } else {
             // For all UE, use the standard format provided by user
+            request.put("afServiceId", nefConfig.getAfServiceId());
             // Build traffic rule
             String targetNetwork = networkSegment != null && !networkSegment.isEmpty() ? networkSegment
                     : "10.60.0.0/16";
@@ -246,6 +451,34 @@ public class NefClient {
             request.put("trafficFilters", Arrays.asList(trafficFilter));
         }
 
+        return request;
+    }
+
+    private Map<String, Object> buildQiantongTrafficInfluenceRequest(String dnn, Map<String, Object> snssai,
+            String dnai, String targetIp, String networkSegment) {
+        String targetNetwork = networkSegment != null && !networkSegment.isEmpty() ? networkSegment
+                : "10.60.0.0/16";
+        String appIp = targetIp != null ? targetIp : "";
+        String flowRule = String.format("permit out ip from %s to %s", appIp, targetNetwork);
+
+        Map<String, Object> trafficFilter = new HashMap<>();
+        trafficFilter.put("flowId", 1);
+        trafficFilter.put("flowDescriptions", Arrays.asList(flowRule));
+
+        Map<String, Object> routeInfo = new HashMap<>();
+        routeInfo.put("ipv4Addr", appIp);
+        routeInfo.put("portNumber", QIANTONG_ROUTE_PORT);
+
+        Map<String, Object> trafficRoute = new HashMap<>();
+        trafficRoute.put("dnai", dnai != null ? dnai : "mec");
+        trafficRoute.put("routeInfo", routeInfo);
+
+        Map<String, Object> request = new HashMap<>();
+        request.put("dnn", dnn != null ? dnn : "internet");
+        request.put("snssai", snssai);
+        request.put("anyUeInd", true);
+        request.put("trafficFilters", Arrays.asList(trafficFilter));
+        request.put("trafficRoutes", Arrays.asList(trafficRoute));
         return request;
     }
 
@@ -267,6 +500,7 @@ public class NefClient {
                 params.put("sst", (String) payload.get("sst"));
                 params.put("sd", (String) payload.get("sd"));
                 params.put("networkSegment", (String) payload.get("networkSegment"));
+                params.put("routeProfId", (String) payload.get("routeProfId"));
             } catch (Exception e) {
                 logger.warn("Could not parse request payload for additional parameters: ", e);
                 // Set default values
@@ -275,6 +509,7 @@ public class NefClient {
                 params.put("dnn", "default-dnn");
                 params.put("sst", "1");
                 params.put("sd", "010203");
+                params.put("routeProfId", "mec");
             }
         } else {
             // If no request payload, use default values
@@ -283,19 +518,25 @@ public class NefClient {
             params.put("dnn", "default-dnn");
             params.put("sst", "1");
             params.put("sd", "010203");
+            params.put("routeProfId", "mec");
         }
 
         return params;
     }
 
-    private CloseableHttpClient createHttpClient() {
-        RequestConfig config = RequestConfig.custom()
-                .setConnectTimeout(nefConfig.getTimeoutSeconds() * 1000)
-                .setSocketTimeout(nefConfig.getTimeoutSeconds() * 1000)
-                .build();
-
-        return HttpClients.custom()
-                .setDefaultRequestConfig(config)
-                .build();
+    private OkHttpClient getHttpClient() {
+        if (httpClient == null) {
+            synchronized (this) {
+                if (httpClient == null) {
+                    httpClient = new OkHttpClient.Builder()
+                            .connectTimeout(nefConfig.getTimeoutSeconds(), TimeUnit.SECONDS)
+                            .readTimeout(nefConfig.getTimeoutSeconds(), TimeUnit.SECONDS)
+                            .writeTimeout(nefConfig.getTimeoutSeconds(), TimeUnit.SECONDS)
+                            .protocols(Collections.singletonList(Protocol.H2_PRIOR_KNOWLEDGE))
+                            .build();
+                }
+            }
+        }
+        return httpClient;
     }
 }

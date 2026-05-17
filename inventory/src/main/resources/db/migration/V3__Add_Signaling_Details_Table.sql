@@ -21,6 +21,9 @@ ALTER TABLE signaling_details ADD COLUMN IF NOT EXISTS sst VARCHAR(10);
 ALTER TABLE signaling_details ADD COLUMN IF NOT EXISTS sd VARCHAR(15);
 ALTER TABLE signaling_details ADD COLUMN IF NOT EXISTS network_segment VARCHAR(45);
 ALTER TABLE signaling_details ADD COLUMN IF NOT EXISTS upf VARCHAR(255);
+ALTER TABLE signaling_details ADD COLUMN IF NOT EXISTS route_prof_id VARCHAR(255);
+ALTER TABLE signaling_details ADD COLUMN IF NOT EXISTS pfd_transaction_id VARCHAR(255);
+ALTER TABLE signaling_details ADD COLUMN IF NOT EXISTS core_network_type VARCHAR(32);
 
 -- 创建索引以提高查询性能
 CREATE INDEX IF NOT EXISTS idx_signaling_app_instance ON signaling_details(app_instance_id);
@@ -28,3 +31,4 @@ CREATE INDEX IF NOT EXISTS idx_signaling_status ON signaling_details(status);
 CREATE INDEX IF NOT EXISTS idx_signaling_create_time ON signaling_details(create_time);
 CREATE INDEX IF NOT EXISTS idx_signaling_ue_type ON signaling_details(ue_type);
 CREATE INDEX IF NOT EXISTS idx_signaling_dnn ON signaling_details(dnn);
+CREATE INDEX IF NOT EXISTS idx_signaling_core_network_type ON signaling_details(core_network_type);

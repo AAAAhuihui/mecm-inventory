@@ -1,0 +1,19 @@
+{
+  "java.home": "",
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "[java]": {
+    "editor.defaultFormatter": "redhat.java",
+    "editor.formatOnSave": true,
+    "editor.formatOnType": true
+  },
+  "java.semanticHighlighting.enabled": true,
+  "java.saveActionOrganizeImports": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "explicit"
+  },
+  "java.project.referencedLibraries": [
+    "lib/**/*.jar"
+  ],
+  "java.import.maven.enabled": true,
+  "redhat.telemetry.enabled": false
+}

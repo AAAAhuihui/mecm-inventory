@@ -62,6 +62,8 @@ spring:
       - classpath:db/migration/V1__Add_Inventory_Task_Table.sql
       - classpath:db/migration/V2__Add_Task_Inventory_Table.sql
       - classpath:db/migration/V3__Add_Signaling_Details_Table.sql
+      - classpath:db/migration/V4__Add_Core_Network_Config_Table.sql
+      - classpath:db/migration/V5__Update_Core_Network_Config_To_Nef.sql
   jpa:
     properties:
       hibernate:
@@ -82,6 +84,7 @@ spring:
 #### NEF Configuration ####
 nef:
   endpoint: ${NEF_ENDPOINT:http://192.168.254.154:8000/3gpp-traffic-influence/v1/af001/subscriptions}
+  pfdEndpoint: ${NEF_PFD_ENDPOINT:http://127.0.0.16:7777/3gpp-pfd-management/v1/af-demo/transactions}
   tls_enable: ${NEF_TLS_ENABLE:false}
   timeout_sec: ${NEF_TIMEOUT_SEC:15}
   afServiceId: ${NEF_AF_SERVICE_ID:Service1}
