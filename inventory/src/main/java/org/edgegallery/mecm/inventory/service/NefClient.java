@@ -50,8 +50,6 @@ public class NefClient {
 
     private static final String QIANTONG_CORE_NETWORK = "qiantong";
 
-    private static final int QIANTONG_ROUTE_PORT = 8080;
-
     private static final MediaType JSON_MEDIA_TYPE = MediaType.parse("application/json; charset=utf-8");
 
     @Autowired
@@ -402,6 +400,7 @@ public class NefClient {
         String sd = (String) requestParams.get("sd");
         String networkSegment = (String) requestParams.get("networkSegment");
         String routeProfId = (String) requestParams.get("routeProfId");
+        Integer routePortNumber = parsePortNumber(requestParams.get("routePortNumber"));
 
         // Build SNSSAI
         Map<String, Object> snssai = new HashMap<>();
@@ -413,7 +412,7 @@ public class NefClient {
         snssai.put("sd", sd != null ? sd : "010203"); // Default value
 
         if (QIANTONG_CORE_NETWORK.equals(signalingDetails.getCoreNetworkType())) {
-            return buildQiantongTrafficInfluenceRequest(dnn, snssai, dnai, targetIp, networkSegment);
+            return buildQiantongTrafficInfluenceRequest(dnn, snssai, dnai, targetIp, networkSegment, routePortNumber);
         }
 
         // Build traffic route
@@ -455,7 +454,11 @@ public class NefClient {
     }
 
     private Map<String, Object> buildQiantongTrafficInfluenceRequest(String dnn, Map<String, Object> snssai,
-            String dnai, String targetIp, String networkSegment) {
+            String dnai, String targetIp, String networkSegment, Integer routePortNumber) {
+        if (routePortNumber == null || routePortNumber < 1 || routePortNumber > 65535) {
+            throw new IllegalArgumentException("Valid route port number is required for Qiantong traffic influence");
+        }
+
         String targetNetwork = networkSegment != null && !networkSegment.isEmpty() ? networkSegment
                 : "10.60.0.0/16";
         String appIp = targetIp != null ? targetIp : "";
@@ -467,7 +470,7 @@ public class NefClient {
 
         Map<String, Object> routeInfo = new HashMap<>();
         routeInfo.put("ipv4Addr", appIp);
-        routeInfo.put("portNumber", QIANTONG_ROUTE_PORT);
+        routeInfo.put("portNumber", routePortNumber);
 
         Map<String, Object> trafficRoute = new HashMap<>();
         trafficRoute.put("dnai", dnai != null ? dnai : "mec");
@@ -501,6 +504,7 @@ public class NefClient {
                 params.put("sd", (String) payload.get("sd"));
                 params.put("networkSegment", (String) payload.get("networkSegment"));
                 params.put("routeProfId", (String) payload.get("routeProfId"));
+                params.put("routePortNumber", payload.get("routePortNumber"));
             } catch (Exception e) {
                 logger.warn("Could not parse request payload for additional parameters: ", e);
                 // Set default values
@@ -510,6 +514,7 @@ public class NefClient {
                 params.put("sst", "1");
                 params.put("sd", "010203");
                 params.put("routeProfId", "mec");
+                params.put("routePortNumber", null);
             }
         } else {
             // If no request payload, use default values
@@ -519,9 +524,33 @@ public class NefClient {
             params.put("sst", "1");
             params.put("sd", "010203");
             params.put("routeProfId", "mec");
+            params.put("routePortNumber", null);
         }
 
         return params;
+    }
+
+    private Integer parsePortNumber(Object portObject) {
+        if (portObject == null) {
+            return null;
+        }
+        if (portObject instanceof Number) {
+            int port = ((Number) portObject).intValue();
+            return isValidPort(port) ? port : null;
+        }
+        if (portObject instanceof String) {
+            try {
+                int port = Integer.parseInt(((String) portObject).trim());
+                return isValidPort(port) ? port : null;
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private boolean isValidPort(int port) {
+        return port >= 1 && port <= 65535;
     }
 
     private OkHttpClient getHttpClient() {
