@@ -22,6 +22,7 @@ import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -49,6 +50,11 @@ public class NefClient {
     private static final Logger logger = LoggerFactory.getLogger(NefClient.class);
 
     private static final String QIANTONG_CORE_NETWORK = "qiantong";
+
+    private static final String QIANTONG_TRAFFIC_INFLUENCE_PATH =
+            "/3gpp-traffic-influence/v1/af-mec-001/subscriptions";
+
+    private static final String QIANTONG_AUTHORIZATION = "Bearer selftest";
 
     private static final MediaType JSON_MEDIA_TYPE = MediaType.parse("application/json; charset=utf-8");
 
@@ -174,14 +180,9 @@ public class NefClient {
 
             RequestBody requestBody = RequestBody.create(JSON_MEDIA_TYPE,
                     objectMapper.writeValueAsString(requestPayload));
-            String trafficInfluenceEndpoint = buildEndpoint(nefConfig.getNefEndpoint(),
-                    signalingDetails.getCoreNetworkType());
-            Request request = new Request.Builder()
-                    .url(trafficInfluenceEndpoint)
-                    .addHeader("Content-Type", "application/json; charset=utf-8")
-                    .addHeader("Accept", "application/json")
-                    .post(requestBody)
-                    .build();
+            String trafficInfluenceEndpoint = buildTrafficInfluenceEndpoint(signalingDetails.getCoreNetworkType());
+            Request request = buildTrafficInfluencePostRequest(trafficInfluenceEndpoint,
+                    signalingDetails.getCoreNetworkType(), requestBody);
 
             logger.info("Sending traffic influence request to NEF: {}", trafficInfluenceEndpoint);
             try (Response response = client.newCall(request).execute()) {
@@ -222,6 +223,47 @@ public class NefClient {
         return result;
     }
 
+    public Map<String, Object> cancelTrafficInfluenceRequest(SignalingDetails signalingDetails) {
+        if (QIANTONG_CORE_NETWORK.equals(signalingDetails.getCoreNetworkType())) {
+            return closeQiantongTrafficInfluenceRequest(signalingDetails);
+        }
+        return deleteTrafficInfluenceRequest(signalingDetails.getTransactionId(),
+                signalingDetails.getCoreNetworkType());
+    }
+
+    private Map<String, Object> closeQiantongTrafficInfluenceRequest(SignalingDetails signalingDetails) {
+        OkHttpClient client = getHttpClient();
+        Map<String, Object> result = new HashMap<>();
+
+        try {
+            Map<String, Object> requestPayload = buildQiantongCloseTrafficInfluenceRequest(signalingDetails);
+            RequestBody requestBody = RequestBody.create(JSON_MEDIA_TYPE,
+                    objectMapper.writeValueAsString(requestPayload));
+            String endpoint = buildTrafficInfluenceEndpoint(signalingDetails.getCoreNetworkType());
+            Request request = buildTrafficInfluencePostRequest(endpoint,
+                    signalingDetails.getCoreNetworkType(), requestBody);
+
+            logger.info("Sending Qiantong close traffic influence request to NEF: {}", endpoint);
+            try (Response response = client.newCall(request).execute()) {
+                int statusCode = response.code();
+                String responseBody = response.body() != null ? response.body().string() : "";
+                result.put("statusCode", statusCode);
+                result.put("responseBody", responseBody);
+                result.put("success", statusCode == 200 || statusCode == 201);
+                logger.info("Qiantong close request completed, status: {}, response: {}",
+                        statusCode, responseBody);
+            }
+        } catch (IOException e) {
+            logger.error("Failed to close Qiantong traffic influence: ", e);
+            result.put("success", false);
+            result.put("error", e.getMessage());
+            result.put("statusCode", 500);
+            result.put("responseBody", e.getMessage());
+        }
+
+        return result;
+    }
+
     public Map<String, Object> deleteTrafficInfluenceRequest(String transactionId, String coreNetworkType) {
         OkHttpClient client = getHttpClient();
         Map<String, Object> result = new HashMap<>();
@@ -244,7 +286,7 @@ public class NefClient {
                 deleteUrl = transactionId;
             } else {
                 // If transactionId is just a number, append it to the base endpoint
-                String baseEndpoint = buildEndpoint(nefConfig.getNefEndpoint(), coreNetworkType);
+                String baseEndpoint = buildTrafficInfluenceEndpoint(coreNetworkType);
                 // Ensure baseEndpoint ends with /
                 if (!baseEndpoint.endsWith("/")) {
                     baseEndpoint += "/";
@@ -400,7 +442,12 @@ public class NefClient {
         String sd = (String) requestParams.get("sd");
         String networkSegment = (String) requestParams.get("networkSegment");
         String routeProfId = (String) requestParams.get("routeProfId");
-        Integer routePortNumber = parsePortNumber(requestParams.get("routePortNumber"));
+
+        if (QIANTONG_CORE_NETWORK.equals(signalingDetails.getCoreNetworkType())) {
+            String afTransId = (String) requestParams.get("afTransId");
+            return buildQiantongTrafficInfluenceRequest(appId, afTransId, dnn, targetIp,
+                    signalingDetails.getId());
+        }
 
         // Build SNSSAI
         Map<String, Object> snssai = new HashMap<>();
@@ -410,10 +457,6 @@ public class NefClient {
             snssai.put("sst", 1); // Default value
         }
         snssai.put("sd", sd != null ? sd : "010203"); // Default value
-
-        if (QIANTONG_CORE_NETWORK.equals(signalingDetails.getCoreNetworkType())) {
-            return buildQiantongTrafficInfluenceRequest(dnn, snssai, dnai, targetIp, networkSegment, routePortNumber);
-        }
 
         // Build traffic route
         Map<String, Object> trafficRoute = new HashMap<>();
@@ -453,36 +496,67 @@ public class NefClient {
         return request;
     }
 
-    private Map<String, Object> buildQiantongTrafficInfluenceRequest(String dnn, Map<String, Object> snssai,
-            String dnai, String targetIp, String networkSegment, Integer routePortNumber) {
-        if (routePortNumber == null || routePortNumber < 1 || routePortNumber > 65535) {
-            throw new IllegalArgumentException("Valid route port number is required for Qiantong traffic influence");
+    private Map<String, Object> buildQiantongTrafficInfluenceRequest(String appId, String afTransId,
+            String dnn, String targetIp, Long signalingId) {
+        String appIp = targetIp != null ? targetIp.trim() : "";
+        String appIpSegment = appIp.contains("/") ? appIp : appIp + "/32";
+        String resolvedAfTransId = afTransId != null && !afTransId.isEmpty()
+                ? afTransId
+                : String.format("ti-inventory-%04d", signalingId != null ? signalingId : 0L);
+
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("afServiceId", nefConfig.getAfServiceId());
+        request.put("afAppId", appId);
+        request.put("afTransId", resolvedAfTransId);
+        request.put("dnn", dnn);
+        request.put("ulclUpfId", "upf-2");
+        request.put("psa1UpfId", "upf-1");
+        request.put("psa1UpfSdf", "permit out ip from any to assigned");
+        request.put("psa2UpfId", "upf-2");
+        request.put("psa2UpfSdf", String.format("permit out ip from %s to assigned", appIpSegment));
+        request.put("trafficRoutes", Arrays.asList(Collections.emptyMap()));
+        request.put("smfLoc", 0);
+        request.put("enbId", 0);
+        request.put("singlePsa1Enable", false);
+        return request;
+    }
+
+    private Map<String, Object> buildQiantongCloseTrafficInfluenceRequest(SignalingDetails signalingDetails) {
+        Map<String, Object> request = build3gppTrafficInfluenceRequest(signalingDetails);
+        request.remove("psa2UpfSdf");
+        return request;
+    }
+
+    private String buildTrafficInfluenceEndpoint(String coreNetworkType) {
+        String endpoint = buildEndpoint(nefConfig.getNefEndpoint(), coreNetworkType);
+        if (!QIANTONG_CORE_NETWORK.equals(coreNetworkType)) {
+            return endpoint;
         }
 
-        String targetNetwork = networkSegment != null && !networkSegment.isEmpty() ? networkSegment
-                : "10.60.0.0/16";
-        String appIp = targetIp != null ? targetIp : "";
-        String flowRule = String.format("permit out ip from %s to %s", appIp, targetNetwork);
+        try {
+            URI uri = new URI(endpoint);
+            return new URI("http", null, uri.getHost(), uri.getPort(),
+                    QIANTONG_TRAFFIC_INFLUENCE_PATH, null, null).toString();
+        } catch (URISyntaxException e) {
+            logger.warn("Failed to build Qiantong traffic influence endpoint, using configured endpoint: {}",
+                    e.getMessage());
+            return endpoint;
+        }
+    }
 
-        Map<String, Object> trafficFilter = new HashMap<>();
-        trafficFilter.put("flowId", 1);
-        trafficFilter.put("flowDescriptions", Arrays.asList(flowRule));
-
-        Map<String, Object> routeInfo = new HashMap<>();
-        routeInfo.put("ipv4Addr", appIp);
-        routeInfo.put("portNumber", routePortNumber);
-
-        Map<String, Object> trafficRoute = new HashMap<>();
-        trafficRoute.put("dnai", dnai != null ? dnai : "mec");
-        trafficRoute.put("routeInfo", routeInfo);
-
-        Map<String, Object> request = new HashMap<>();
-        request.put("dnn", dnn != null ? dnn : "internet");
-        request.put("snssai", snssai);
-        request.put("anyUeInd", true);
-        request.put("trafficFilters", Arrays.asList(trafficFilter));
-        request.put("trafficRoutes", Arrays.asList(trafficRoute));
-        return request;
+    private Request buildTrafficInfluencePostRequest(String endpoint, String coreNetworkType,
+            RequestBody requestBody) {
+        Request.Builder builder = new Request.Builder()
+                .url(endpoint)
+                .post(requestBody);
+        if (QIANTONG_CORE_NETWORK.equals(coreNetworkType)) {
+            builder.addHeader("Content-Type", "application/json");
+            builder.addHeader("Authorization", QIANTONG_AUTHORIZATION);
+        } else {
+            builder.addHeader("Content-Type", "application/json; charset=utf-8");
+            builder.addHeader("Accept", "application/json");
+        }
+        return builder.build();
     }
 
     private Map<String, Object> extractRequestParams(SignalingDetails signalingDetails) {
@@ -504,7 +578,7 @@ public class NefClient {
                 params.put("sd", (String) payload.get("sd"));
                 params.put("networkSegment", (String) payload.get("networkSegment"));
                 params.put("routeProfId", (String) payload.get("routeProfId"));
-                params.put("routePortNumber", payload.get("routePortNumber"));
+                params.put("afTransId", (String) payload.get("afTransId"));
             } catch (Exception e) {
                 logger.warn("Could not parse request payload for additional parameters: ", e);
                 // Set default values
@@ -514,7 +588,6 @@ public class NefClient {
                 params.put("sst", "1");
                 params.put("sd", "010203");
                 params.put("routeProfId", "mec");
-                params.put("routePortNumber", null);
             }
         } else {
             // If no request payload, use default values
@@ -524,33 +597,9 @@ public class NefClient {
             params.put("sst", "1");
             params.put("sd", "010203");
             params.put("routeProfId", "mec");
-            params.put("routePortNumber", null);
         }
 
         return params;
-    }
-
-    private Integer parsePortNumber(Object portObject) {
-        if (portObject == null) {
-            return null;
-        }
-        if (portObject instanceof Number) {
-            int port = ((Number) portObject).intValue();
-            return isValidPort(port) ? port : null;
-        }
-        if (portObject instanceof String) {
-            try {
-                int port = Integer.parseInt(((String) portObject).trim());
-                return isValidPort(port) ? port : null;
-            } catch (NumberFormatException e) {
-                return null;
-            }
-        }
-        return null;
-    }
-
-    private boolean isValidPort(int port) {
-        return port >= 1 && port <= 65535;
     }
 
     private OkHttpClient getHttpClient() {

@@ -206,27 +206,36 @@ public class SignalingService {
     }
 
     public Map<String, Object> createSignalingPolicy(SignalingPolicyRequest request) {
+        String coreNetworkType = request.getCoreNetworkType() != null && !request.getCoreNetworkType().isEmpty()
+                ? normalizeCoreNetworkType(request.getCoreNetworkType())
+                : DEFAULT_CORE_NETWORK;
+        boolean isQiantong = QIANTONG_CORE_NETWORK.equals(coreNetworkType);
+
         // Parameter validation
         if (request.getAppId() == null || request.getAppId().isEmpty() ||
-                request.getDnai() == null || request.getDnai().isEmpty() ||
-                request.getTargetIp() == null || request.getTargetIp().isEmpty()) {
-            logger.error("❌ Missing required parameters: appId={}, dnai={}, targetIp={}",
-                    request.getAppId(), request.getDnai(), request.getTargetIp());
+                request.getTargetIp() == null || request.getTargetIp().isEmpty() ||
+                request.getDnn() == null || request.getDnn().isEmpty() ||
+                (!isQiantong && (request.getDnai() == null || request.getDnai().isEmpty()))) {
+            logger.error("Missing required signaling parameters for core network type: {}", coreNetworkType);
 
             Map<String, Object> errorResult = new HashMap<>();
-            errorResult.put("success", false);
-            errorResult.put("error", "Missing required parameters: appId, dnai, targetIp");
+            errorResult.put("code", 400);
+            errorResult.put("data", new HashMap<>());
+            errorResult.put("msg", isQiantong
+                    ? "Missing required parameters: appId, targetIp, dnn"
+                    : "Missing required parameters: appId, dnai, targetIp, dnn");
             return errorResult;
         }
 
         // UE type validation
-        if (request.getUeType() != null && !request.getUeType().equals("single")
-                && !request.getUeType().equals("all")) {
+        if (!isQiantong && (request.getUeType() == null || (!request.getUeType().equals("single")
+                && !request.getUeType().equals("all")))) {
             logger.error("❌ Invalid UE type: {}", request.getUeType());
 
             Map<String, Object> errorResult = new HashMap<>();
-            errorResult.put("success", false);
-            errorResult.put("error", "UE type only supports 'single' or 'all'");
+            errorResult.put("code", 400);
+            errorResult.put("data", new HashMap<>());
+            errorResult.put("msg", "UE type only supports 'single' or 'all'");
             return errorResult;
         }
 
@@ -244,25 +253,9 @@ public class SignalingService {
         logger.info("======================================================");
 
         try {
-            String coreNetworkType = request.getCoreNetworkType() != null && !request.getCoreNetworkType().isEmpty()
-                    ? normalizeCoreNetworkType(request.getCoreNetworkType())
-                    : DEFAULT_CORE_NETWORK;
-            String ueType = QIANTONG_CORE_NETWORK.equals(coreNetworkType) ? "all"
+            String ueType = isQiantong ? "all"
                     : (request.getUeType() != null ? request.getUeType() : "all");
-            Integer routePortNumber = null;
-            if (QIANTONG_CORE_NETWORK.equals(coreNetworkType)) {
-                routePortNumber = resolveContainerPort(request.getAppId());
-                if (routePortNumber == null) {
-                    String failureMessage = "Failed to resolve container port from mecapplicationinventory.app_ports";
-                    SignalingDetails failedSignaling = saveFailedSignalingRecord(request, coreNetworkType, ueType,
-                            failureMessage);
-                    Map<String, Object> errorResult = new HashMap<>();
-                    errorResult.put("code", 500);
-                    errorResult.put("data", createDataMap("dbId", failedSignaling.getId()));
-                    errorResult.put("msg", failureMessage);
-                    return errorResult;
-                }
-            }
+            Long signalingId = getNextSignalingId();
 
             // 1. Create request payload (including API version, AF ID, etc.)
             Map<String, Object> reqPayload = new HashMap<>();
@@ -273,24 +266,25 @@ public class SignalingService {
 
             // Add request parameters
             reqPayload.put("appId", request.getAppId());
-            reqPayload.put("dnai", request.getDnai());
             reqPayload.put("targetIp", request.getTargetIp());
             reqPayload.put("ueType", ueType);
-            reqPayload.put("ueIp", "all".equals(ueType) ? "" : request.getUeIp());
             reqPayload.put("dnn", request.getDnn());
-            reqPayload.put("sst", request.getSst());
-            reqPayload.put("sd", request.getSd());
-            reqPayload.put("networkSegment", request.getNetworkSegment());
-            reqPayload.put("upf", request.getUpf());
             reqPayload.put("coreNetworkType", coreNetworkType);
-            if (routePortNumber != null) {
-                reqPayload.put("routePortNumber", routePortNumber);
-            }
-            if (request.getRouteProfId() == null || request.getRouteProfId().isEmpty()) {
-                logger.info("routeProfId is empty, use default value: mec");
-                reqPayload.put("routeProfId", "mec");
+            if (isQiantong) {
+                reqPayload.put("afTransId", String.format("ti-inventory-%04d", signalingId));
             } else {
-                reqPayload.put("routeProfId", request.getRouteProfId());
+                reqPayload.put("dnai", request.getDnai());
+                reqPayload.put("ueIp", "all".equals(ueType) ? "" : request.getUeIp());
+                reqPayload.put("sst", request.getSst());
+                reqPayload.put("sd", request.getSd());
+                reqPayload.put("networkSegment", request.getNetworkSegment());
+                reqPayload.put("upf", request.getUpf());
+                if (request.getRouteProfId() == null || request.getRouteProfId().isEmpty()) {
+                    logger.info("routeProfId is empty, use default value: mec");
+                    reqPayload.put("routeProfId", "mec");
+                } else {
+                    reqPayload.put("routeProfId", request.getRouteProfId());
+                }
             }
 
             String requestPayload = objectMapper.writeValueAsString(reqPayload);
@@ -299,16 +293,16 @@ public class SignalingService {
             SignalingDetails signalingDetails = new SignalingDetails(
                     request.getAppId(),
                     request.getTargetIp(),
-                    request.getDnai(),
+                    isQiantong ? "" : request.getDnai(),
                     ueType,
                     "all".equals(ueType) ? "" : request.getUeIp(),
                     request.getDnn(),
-                    request.getSst(),
-                    request.getSd(),
-                    request.getNetworkSegment(),
-                    request.getUpf(),
-                    request.getRouteProfId());
-            signalingDetails.setId(getNextSignalingId());
+                    isQiantong ? null : request.getSst(),
+                    isQiantong ? null : request.getSd(),
+                    isQiantong ? null : request.getNetworkSegment(),
+                    isQiantong ? null : request.getUpf(),
+                    isQiantong ? null : request.getRouteProfId());
+            signalingDetails.setId(signalingId);
             signalingDetails.setCoreNetworkType(coreNetworkType);
 
             // Set request payload
@@ -440,18 +434,19 @@ public class SignalingService {
 
     private SignalingDetails saveFailedSignalingRecord(SignalingPolicyRequest request, String coreNetworkType,
             String ueType, String failureMessage) throws Exception {
+        boolean isQiantong = QIANTONG_CORE_NETWORK.equals(coreNetworkType);
         SignalingDetails failedSignaling = new SignalingDetails(
                 request.getAppId(),
                 request.getTargetIp(),
-                request.getDnai(),
+                isQiantong ? "" : request.getDnai(),
                 ueType,
                 "all".equals(ueType) ? "" : request.getUeIp(),
                 request.getDnn(),
-                request.getSst(),
-                request.getSd(),
-                request.getNetworkSegment(),
-                request.getUpf(),
-                request.getRouteProfId());
+                isQiantong ? null : request.getSst(),
+                isQiantong ? null : request.getSd(),
+                isQiantong ? null : request.getNetworkSegment(),
+                isQiantong ? null : request.getUpf(),
+                isQiantong ? null : request.getRouteProfId());
         failedSignaling.setId(getNextSignalingId());
         failedSignaling.setCoreNetworkType(coreNetworkType);
         failedSignaling.setRequestPayload(buildFailedRequestPayload(request, coreNetworkType, ueType, failureMessage));
@@ -505,70 +500,6 @@ public class SignalingService {
         return nextId;
     }
 
-    private Integer resolveContainerPort(String appInstanceId) {
-        if (appInstanceId == null || appInstanceId.isEmpty()) {
-            return null;
-        }
-
-        try {
-            Optional<MecApplication> optionalApp = mecApplicationRepository.findById(appInstanceId);
-            if (!optionalApp.isPresent()) {
-                logger.warn("MEC application not found when resolving container port, appInstanceId: {}", appInstanceId);
-                return null;
-            }
-
-            String appPorts = optionalApp.get().getAppPorts();
-            if (appPorts == null || appPorts.trim().isEmpty()) {
-                logger.warn("app_ports is empty when resolving container port, appInstanceId: {}", appInstanceId);
-                return null;
-            }
-
-            Map<String, Object> appPortsMap = objectMapper.readValue(appPorts, Map.class);
-            Object containerPortsObject = appPortsMap.get("containerPorts");
-            if (!(containerPortsObject instanceof List)) {
-                logger.warn("containerPorts is missing in app_ports, appInstanceId: {}", appInstanceId);
-                return null;
-            }
-
-            for (Object containerPortObject : (List<?>) containerPortsObject) {
-                if (!(containerPortObject instanceof Map)) {
-                    continue;
-                }
-                Integer port = parsePortNumber(((Map<?, ?>) containerPortObject).get("port"));
-                if (port != null) {
-                    return port;
-                }
-            }
-
-            logger.warn("No valid container port found in app_ports, appInstanceId: {}", appInstanceId);
-        } catch (Exception e) {
-            logger.warn("Failed to resolve container port from app_ports, appInstanceId: {}", appInstanceId, e);
-        }
-        return null;
-    }
-
-    private Integer parsePortNumber(Object portObject) {
-        if (portObject == null) {
-            return null;
-        }
-
-        Integer port = null;
-        if (portObject instanceof Number) {
-            port = ((Number) portObject).intValue();
-        } else if (portObject instanceof String) {
-            try {
-                port = Integer.parseInt(((String) portObject).trim());
-            } catch (NumberFormatException e) {
-                return null;
-            }
-        }
-
-        if (port == null || port < 1 || port > 65535) {
-            return null;
-        }
-        return port;
-    }
-
     public Map<String, Object> deleteSignalingPolicy(Long policyId) {
         try {
             logger.info("Starting to cancel signaling, Policy ID: {}", policyId);
@@ -599,9 +530,7 @@ public class SignalingService {
             // 3. Execute NEF subscription cancellation
             logger.info("🔍 Starting to cancel NEF subscription, TransactionId: {}",
                     signalingDetails.getTransactionId());
-            Map<String, Object> deleteResult = nefClient
-                    .deleteTrafficInfluenceRequest(signalingDetails.getTransactionId(),
-                            signalingDetails.getCoreNetworkType());
+            Map<String, Object> deleteResult = nefClient.cancelTrafficInfluenceRequest(signalingDetails);
             boolean isNefSuccess = (Boolean) deleteResult.get("success");
             boolean isSubscriptionNotFound = Boolean.TRUE.equals(deleteResult.get("subscriptionNotFound"));
             boolean isCancelFailed = Boolean.TRUE.equals(deleteResult.get("cancelFailed"));
@@ -913,8 +842,7 @@ public class SignalingService {
                     continue;
                 }
 
-                Map<String, Object> deleteResult = nefClient.deleteTrafficInfluenceRequest(transactionId,
-                        signaling.getCoreNetworkType());
+                Map<String, Object> deleteResult = nefClient.cancelTrafficInfluenceRequest(signaling);
                 boolean nefSuccess = Boolean.TRUE.equals(deleteResult.get("success"));
                 Map<String, Object> pfdDeleteResult = nefClient.deletePfdRequest(signaling.getPfdTransactionId(),
                         signaling.getCoreNetworkType());

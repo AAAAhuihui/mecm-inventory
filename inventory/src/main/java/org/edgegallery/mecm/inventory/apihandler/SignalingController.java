@@ -99,8 +99,14 @@ public class SignalingController {
 
         // Check the response code from the service layer
         Integer responseCode = (Integer) result.get("code");
-        HttpStatus status = (responseCode != null && responseCode == 200) ? HttpStatus.OK
-                : HttpStatus.INTERNAL_SERVER_ERROR;
+        HttpStatus status;
+        if (responseCode != null && responseCode == 200) {
+            status = HttpStatus.OK;
+        } else if (responseCode != null && responseCode == 400) {
+            status = HttpStatus.BAD_REQUEST;
+        } else {
+            status = HttpStatus.INTERNAL_SERVER_ERROR;
+        }
 
         return new ResponseEntity<>(result, status);
     }

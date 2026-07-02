@@ -17,20 +17,17 @@
 package org.edgegallery.mecm.inventory.apihandler.dto;
 
 import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.NotNull;
 
 public class SignalingPolicyRequest {
 
     @NotBlank(message = "App ID is required")
     private String appId;
 
-    @NotBlank(message = "DNAI is required")
     private String dnai;
 
     @NotBlank(message = "Target IP is required")
     private String targetIp;
 
-    @NotNull(message = "UE Type is required")
     private String ueType; // "single" or "all"
 
     private String ueIp; // Only required when ueType is "single"
